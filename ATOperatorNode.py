@@ -2,6 +2,7 @@ import bpy
 from bpy.utils import register_class, unregister_class
 from .ATFunctions import *
 from .ATProps import *
+from .ATUtils import open_system_directory, is_pil_available, messagebox
 
 class AddSubdivisionOperator(bpy.types.Operator):
     bl_idname = "object.addsubd"
@@ -110,14 +111,11 @@ class MergeBridgeTexOperator(bpy.types.Operator):
     bl_idname = "object.mergebridgetex"
     bl_label = "Merge Bridge Tex"
 
-    # try:
-    #     from PIL import Image
-    # except ImportError:
-    #     # 如果导入失败，打印错误信息并跳过导入
-    #     messagebox(message="PIL library not installed. Install it on the plugin settings page", title="WARNING", icon='INFO')
-    #     pass
-
     def execute(self, context):
+        if not is_pil_available():
+            messagebox(message="PIL library not installed. Install it on the plugin settings page", title="WARNING", icon='INFO')
+            return {'CANCELLED'}
+
         actmat = bpy.context.active_object.active_material
         actnodetree = bpy.data.materials[actmat.name].node_tree
 
@@ -169,7 +167,7 @@ class MergeBridgeTexOperator(bpy.types.Operator):
             BridgePILMergeCol(BID, ColNodeList)
             NewTexPath = BridgePILMergeORM(BID, ORMNodeList)
             OrganizeImages(BID, NrmNodeList, DisNodeList)
-            OpenSysDir(NewTexPath)
+            open_system_directory(NewTexPath)
         else:
             messagebox(message="Not Bridge Material", title="WARNING", icon='INFO')
         return {'FINISHED'}
@@ -328,6 +326,10 @@ class ManualMergeTexOperator(bpy.types.Operator):
     bl_label = "Manual Merge Tex"
 
     def execute(self, context):
+        if not is_pil_available():
+            messagebox(message="PIL library not installed. Install it on the plugin settings page", title="WARNING", icon='INFO')
+            return {'CANCELLED'}
+
         actmat = bpy.context.active_object.active_material
         actnodetree = bpy.data.materials[actmat.name].node_tree
         wm = bpy.context.window_manager
@@ -372,11 +374,48 @@ class ManualMergeTexOperator(bpy.types.Operator):
 
         if ManualColNodeList:
             ManualPILMergeCol(ManualColNodeList)
-            NewTexPath = ManualPILMergeORM(actmat, ManualORMNodeList)
-            ManualOrganizeImages(BID, ManualColNodeList, ManualNrmNodeList)
-            # OpenSysDir(NewTexPath)
+            NewORMTexPath = ManualPILMergeORM(actmat, ManualORMNodeList)
+            NewColTexPath, NewNrmTexPath = ManualOrganizeImages(actmat, ManualColNodeList, ManualNrmNodeList)
+            
+            ColIM = Image.open(NewColTexPath)
+            NrmIM = Image.open(NewNrmTexPath)
+            ORMIM = Image.open(NewORMTexPath)
+
+            open_system_directory(NewColTexPath)
+        return {'FINISHED'}
+
+
+class CheckTextureNameOperator(bpy.types.Operator):
+    bl_idname = "object.checktexturename"
+    bl_label = "Check Texture Names"
+
+    def execute(self, context):
+        # Get active material
+        actmat = bpy.context.active_object.active_material
+        if not actmat:
+            messagebox("No active material found", "Warning", "ERROR")
+            return {'CANCELLED'}
+
+        # Get node tree
+        nodetree = actmat.node_tree
+        if not nodetree:
+            messagebox("No node tree found in active material", "Warning", "ERROR") 
+            return {'CANCELLED'}
+
+        # Check all texture nodes
+        found_numbered = False
+        for node in nodetree.nodes:
+            if node.type == 'TEX_IMAGE' and node.image:
+                # Check if image name ends with .001 through .005
+                if node.image.name.endswith(('.001', '.002', '.003', '.004', '.005')):
+                    found_numbered = True
+                    print(f"Found numbered texture: {node.image.name}")
+
+        if found_numbered:
+            messagebox("Found textures with .00x suffixes in material", "Warning", "INFO")
         else:
-            messagebox(message="Not Bridge Material", title="WARNING", icon='INFO')
+            messagebox("No textures with .00x suffixes found", "Result", "INFO")
+
         return {'FINISHED'}
 
 #===========================================================================================================
@@ -389,9 +428,6 @@ class ATTestOperator(bpy.types.Operator):
         print("Test")
         return {'FINISHED'}
     
-#===========================================================================================================
-
-
 #===========================================================================================================
 
 classes = (
@@ -413,6 +449,7 @@ classes = (
     DelAOTex,
     MarkNorTex,
     DelNorTex,
+    CheckTextureNameOperator,
     ATTestOperator,
 )
 

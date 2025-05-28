@@ -2,6 +2,7 @@ import bpy
 from bpy.utils import register_class, unregister_class
 from .ATFunctions import *
 from .ATOperator3D import *
+from .ATUtils import is_pil_available
 
 
 class AtPanel3D(bpy.types.Panel):
@@ -27,8 +28,13 @@ class AtPanel3D(bpy.types.Panel):
         wm = context.window_manager
         props = wm.atprops
         
-
         layout = self.layout
+
+        # 添加PIL状态显示
+        if not is_pil_available():
+            box = layout.box()
+            box.label(text="PIL library is not installed", icon='ERROR')
+            box.operator('object.atinstallpil', text='Install PIL')
 
         # layout.operator("object.at3dtestoperator", text="Test Operator")
 
@@ -42,7 +48,7 @@ class AtPanel3D(bpy.types.Panel):
             render_row.operator('object.opticyrender', text="Cycles Best")
 
         header, export = layout.panel("export_panel", default_closed=False)
-        header.label(text="Export Operator")
+        header.label(text="Game Engine Operator")
         if export:
             export_box = export.box()
             export_column = export_box.column()
@@ -70,20 +76,6 @@ class AtPanel3D(bpy.types.Panel):
             image_column.operator('object.reloadimage', text='Reload Images')
             image_column.operator('object.resizemesh', text='Resize Mesh')
 
-        header, physics = layout.panel("physics_panel", default_closed=False)
-        header.label(text="Quick Physics")
-        if physics:
-            row = physics.row()
-            physics_box = row.box()
-            physics_column = physics_box.column()
-            physics_column.label(text='Quick Physics')
-            physics_column.prop(wm.quick_physics, 'physics_friction', text="Friction", slider=True)
-            physics_column.prop(wm.quick_physics, 'physics_time_scale', text="Time Scale")
-            if not wm.quick_physics.running_physics_calculation:
-                physics_column.operator('quick_physics.calc_physics', text="开始模拟")
-            else:
-                physics_column.prop(wm.quick_physics, 'running_physics_calculation', text="Cancel Calculation", icon="X")
-
 class AtPanelNode(bpy.types.Panel):
     bl_idname = "OBJECT_PT_FixBridgeTools"
     bl_label = "Fix Bridge Tools"
@@ -104,8 +96,12 @@ class AtPanelNode(bpy.types.Panel):
         layout = self.layout
         act_obj = bpy.context.active_object
         nodes = None
-        if act_obj:
-            nodes = act_obj.active_material.node_tree.nodes
+        
+        if act_obj and act_obj.active_material:
+            try:
+                nodes = act_obj.active_material.node_tree.nodes
+            except:
+                nodes = None
         else:
             return
 
@@ -190,13 +186,14 @@ class AtPanelNode(bpy.types.Panel):
                     label_box.label(text=wm.atprops.nor_tex_name)
                     #合并贴图
                     manual_merge.operator('object.manualmergetex')
+                    manual_merge.operator('object.checktexturename')
         except:
             pass
         # layout.operator('object.attestoperator', text="测试按钮")
 
 classes = (
     AtPanel3D,
-    AtPanelNode
+    AtPanelNode,
 )
 
 

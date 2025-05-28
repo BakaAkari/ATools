@@ -1,10 +1,8 @@
-import typing
 import os
 import bpy
-from bpy.types import Context
 from bpy.utils import register_class, unregister_class
 from .ATFunctions import *
-from mathutils import Matrix
+import bmesh
 
 class OptiEVRenderOperator(bpy.types.Operator):
     bl_idname = "object.optievrender"
@@ -105,18 +103,7 @@ class Rename_Operator(bpy.types.Operator):
         for i, obj in enumerate(bpy.data.collections[act_obj.users_collection[0].name].all_objects):
             if obj.type == 'MESH':
                 obj.name = bpy.data.collections[obj.users_collection[0].name].name + '_' + str(i + 1).zfill(2)
-                bpy.data.meshes[obj.to_mesh().name].name = bpy.data.collections[
-                                                               obj.users_collection[0].name].name + '_' + str(
-                    i + 1).zfill(2)
-                if len(obj.material_slots) > 1:
-                    messagebox('Have many material', title="WARNING", icon='INFO')
-                else:
-                    print(obj.material_slots)
-                    if len(obj.material_slots) == 0:
-                        messagebox(obj.name + ': ' + 'Not have material', title="WARNING", icon='INFO')
-                    else:
-                        bpy.data.materials[obj.material_slots[0].name].name = bpy.data.collections[
-                            obj.users_collection[0].name].name
+                bpy.data.meshes[obj.to_mesh().name].name = bpy.data.collections[obj.users_collection[0].name].name + '_' + str(i + 1).zfill(2)
         return {'FINISHED'}
 
 
@@ -126,20 +113,63 @@ class CleanObjectOperator(bpy.types.Operator):
 
     def execute(self, context):
         selection = bpy.context.selected_objects
+        processed_count = 0
         for o in selection:
             try:
                 bpy.context.view_layer.objects.active = o
                 bpy.ops.object.editmode_toggle()
                 bpy.ops.mesh.select_all(action='SELECT')
-                bpy.ops.mesh.mark_sharp(clear=True)
-                bpy.ops.mesh.mark_seam(clear=True)
+                
+                # 清除所有边的 edge_crease
                 bpy.ops.transform.edge_crease(value=-1)
+                
+                # 清除所有边的 edge_bevelweight
                 bpy.ops.transform.edge_bevelweight(value=-1)
+                
+                # 清除所有硬边
+                bpy.ops.mesh.mark_sharp(clear=True)
+                
                 bpy.ops.object.editmode_toggle()
-                bpy.ops.mesh.customdata_custom_splitnormals_clear()
+                
+                # 尝试清除自定义分割法线，如果失败则添加自定义分割法线
+                try:
+                    bpy.ops.mesh.customdata_custom_splitnormals_clear()
+                except:
+                    self.report({'INFO'}, f"对象 {o.name} 没有自定义分割法线，正在添加...")
+                    bpy.ops.mesh.customdata_custom_splitnormals_add()
+                
+                # 重新进入编辑模式
+                bpy.ops.object.editmode_toggle()
+                
+                # 获取当前网格数据
+                mesh = o.data
+                bm = bmesh.from_edit_mesh(mesh)
+                
+                # 遍历所有边，为缝合边添加硬边标记
+                for edge in bm.edges:
+                    if edge.seam:
+                        # 清除所有选择
+                        bpy.ops.mesh.select_all(action='DESELECT')
+                        # 选择当前缝合边
+                        edge.select = True
+                        # 标记选中的边为硬边
+                        bpy.ops.mesh.mark_sharp()
+                
+                # 更新网格
+                bmesh.update_edit_mesh(mesh)
+                
+                bpy.ops.object.editmode_toggle()
+                processed_count += 1
 
-            except:
-                print("Object has no custom split normals: " + o.name + ", skipping")
+            except Exception as e:
+                self.report({'ERROR'}, f"处理对象 {o.name} 时出错: {str(e)}")
+                print(f"Error processing object {o.name}: {str(e)}")
+        
+        if processed_count > 0:
+            self.report({'INFO'}, f"成功处理 {processed_count} 个对象")
+        else:
+            self.report({'WARNING'}, "没有处理任何对象")
+            
         return {'FINISHED'}
 
 
@@ -185,216 +215,41 @@ class ExportFBX(bpy.types.Operator):
         props = wm.atprops
         exportpath = props.exportpath
         absexportpath = bpy.path.abspath(exportpath)
-        # 获取当前选中的对象
         selected_objs = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
 
         if selected_objs is None:
             print("没有选中的对象！")
             return
 
-        # 逐个导出选中的对象为FBX文件
         for obj in selected_objs:
-            # 获取对象名称作为文件名
             file_name = obj.name + ".fbx"
             output_path = os.path.join(absexportpath, file_name)
 
-            # 确保路径的格式和目录存在
-            output_path = os.path.normpath(output_path)  # 规范路径格式
-
-            # 确保目录存在
+            output_path = os.path.normpath(output_path)
             output_dir_path = os.path.dirname(output_path)
             if not os.path.exists(output_dir_path):
                 os.makedirs(output_dir_path)
 
-            # # 选择当前对象
-            # bpy.ops.object.select_all(action='DESELECT')  # 取消选择所有对象
-            # obj.select_set(True)  # 选择当前对象
-
-            # 检查对象是否包含关联子项，并将符合条件的子项加入导出列表
-            objects_to_export = [obj]  # 主对象
-            if obj.children:  # 检查是否有子项
+            objects_to_export = [obj]
+            if obj.children:
                 for child in obj.children:
-                    # 判断子项是否为关联子项且类型为 "MESH"
                     if child.parent == obj and child.type == 'MESH':
                         objects_to_export.append(child)
 
-            # 选择所有需要导出的对象
-            bpy.ops.object.select_all(action='DESELECT')  # 取消选择所有对象
+            bpy.ops.object.select_all(action='DESELECT')
             for obj_to_export in objects_to_export:
-                obj_to_export.select_set(True)  # 选择当前对象或子项
+                obj_to_export.select_set(True)
 
-            # 导出当前对象为FBX文件
             if props.export_rule == 'UNREAL':
-                bpy.ops.export_scene.fbx(filepath=output_path, use_selection=True, bake_space_transform=False, axis_forward='-Z', axis_up='Y')
+                bpy.ops.export_scene.fbx(filepath=output_path, use_selection=True, use_space_transform=True, bake_space_transform=True, axis_forward='-Z', axis_up='Y')
             elif props.export_rule == 'UNITY':
-                bpy.ops.export_scene.fbx(filepath=output_path, use_selection=True, bake_space_transform=True, axis_forward='-X', axis_up='Y')
+                bpy.ops.export_scene.fbx(filepath=output_path, use_selection=True, use_space_transform=True, bake_space_transform=True, axis_forward='X', axis_up='Y')
             print(f"导出成功: {output_path}")
 
         return {'FINISHED'}
 
 
 #===========================================================================================================
-class QuickPhysics_CalcPhysics(bpy.types.Operator):
-    bl_idname = "quick_physics.calc_physics"
-    bl_label = "Calculate Physics"
-    bl_description = ""
-    bl_options = {"REGISTER"}
-
-    def __init__(self):
-        fps = 0
-        frame_start = 0
-        frame_end = 0
-        frame_current = 0
-        world_enabled = True
-        use_split_impulse = True
-        world_time_scale = 1.0
-
-    @classmethod
-    def poll(cls, context):
-        return True
-
-    def add_passive_bodies(self, context, add):
-        quick_physics = context.window_manager.quick_physics
-        active_object = context.active_object
-
-        for obj in context.visible_objects:
-            if not obj.select_get() and obj.type == "MESH":
-                context.view_layer.objects.active = obj
-                if add and obj.rigid_body == None:
-                    bpy.ops.rigidbody.object_add()
-                    obj.rigid_body.friction = quick_physics.physics_friction
-                    obj.rigid_body.use_margin = True
-                    obj.rigid_body.collision_margin = 0.0001
-                    obj.rigid_body.type = "PASSIVE"
-                    obj.rigid_body.collision_shape = "MESH"
-                elif not add and obj.rigid_body != None:
-                    bpy.ops.rigidbody.object_remove()
-
-        context.view_layer.objects.active = canvas = active_object
-
-    def invoke(self, context, event):
-
-        mesh_objects = 0
-        for obj in context.selected_objects:
-            if obj.type == "MESH":
-                mesh_objects += 1
-                break
-        if mesh_objects == 0:
-            self.report({'WARNING'}, 'No Objects for Physics selected.')
-            return {"CANCELLED"}
-
-        wm = context.window_manager
-        quick_physics = context.window_manager.quick_physics
-        wm.modal_handler_add(self)
-        quick_physics.running_physics_calculation = True
-
-        if context.scene.rigidbody_world == None:
-            bpy.ops.rigidbody.world_add()
-
-        self.fps = context.scene.render.fps
-        self.frame_start = context.scene.frame_start
-        self.frame_end = context.scene.frame_end
-        self.frame_current = context.scene.frame_current
-        self.world_enabled = context.scene.rigidbody_world.enabled
-        self.use_split_impulse = context.scene.rigidbody_world.use_split_impulse
-        self.world_time_scale = context.scene.rigidbody_world.time_scale
-
-        context.scene.rigidbody_world.time_scale = quick_physics.physics_time_scale
-        context.scene.render.fps = 24
-        context.scene.frame_start = 0
-        context.scene.frame_end = 10000
-        context.scene.frame_current = 0
-        context.scene.rigidbody_world.enabled = True
-        context.scene.rigidbody_world.use_split_impulse = True
-
-        self.add_passive_bodies(context, True)
-
-        bpy.ops.object.as_add_active_physics()
-
-        bpy.ops.screen.animation_play()
-
-        tot = context.scene.frame_end
-        wm.progress_begin(0, tot)
-        return {"RUNNING_MODAL"}
-
-    def exit_modal(self, context, wm):
-        quick_physics = context.window_manager.quick_physics
-        quick_physics.running_physics_calculation = False
-        bpy.ops.screen.animation_play()
-        bpy.ops.object.as_apply_physics()
-        # bpy.ops.screen.animation_cancel()
-
-        context.scene.render.fps = self.fps
-        context.scene.frame_start = self.frame_start
-        context.scene.frame_end = self.frame_end
-        context.scene.frame_current = self.frame_current
-        context.scene.rigidbody_world.enabled = self.world_enabled
-        context.scene.rigidbody_world.use_split_impulse = self.use_split_impulse
-        context.scene.rigidbody_world.time_scale = self.world_time_scale
-
-        self.add_passive_bodies(context, False)
-        wm.progress_end()
-        bpy.ops.ed.undo_push(message="Calc Physics")
-
-    def modal(self, context, event):
-        wm = context.window_manager
-        quick_physics = context.window_manager.quick_physics
-        if event.type in {
-            "ESC"} or context.scene.frame_current >= 10000 or not quick_physics.running_physics_calculation:
-            self.exit_modal(context, wm)
-            return {"CANCELLED"}
-        wm.progress_update(context.scene.frame_current)
-        return {"PASS_THROUGH"}
-
-
-class QuickPhysics_AddActivePhysics(bpy.types.Operator):
-    bl_idname = "object.as_add_active_physics"
-    bl_label = "Add physics to Assets"
-    bl_description = "Sets up Assets as rigidbody objects."
-
-    def execute(self, context):
-        quick_physics = context.window_manager.quick_physics
-        active_object = context.active_object
-        for obj in context.selected_objects:
-            if obj.type == "MESH":
-                context.view_layer.objects.active = obj
-                bpy.ops.rigidbody.object_add()
-                obj.rigid_body.friction = quick_physics.physics_friction
-        context.view_layer.objects.active = active_object
-
-        return {'FINISHED'}
-
-
-class QuickPhysics_ApplyPhysics(bpy.types.Operator):
-    bl_idname = "object.as_apply_physics"
-    bl_label = "Apply physics to Assets"
-    bl_description = "Applies physics to assets and removes rigidbodies."
-
-    def execute(self, context):
-        active_object = context.active_object
-
-        obj_transformation = []
-        context.view_layer.update()
-
-        for obj in context.selected_objects:
-            obj_transformation.append({"obj": obj, "matrix_world": Matrix(obj.matrix_world)})
-
-        for data in obj_transformation:
-            obj = bpy.data.objects[data["obj"].name]
-
-            context.view_layer.objects.active = obj
-            bpy.ops.object.visual_transform_apply()
-            bpy.ops.rigidbody.object_remove()
-
-            obj.matrix_world = data["matrix_world"]
-
-        context.view_layer.objects.active = active_object
-
-        return {'FINISHED'}
-
-
-#===========================================================================================================
-
 class Setstartframe(bpy.types.Operator):
     bl_idname = "object.setstartframe"
     bl_label = "SetStartFrame"
@@ -468,17 +323,7 @@ class StopLoop_OP(bpy.types.Operator):
 
         print(list(frame_change))
         return {'FINISHED'}
-#===========================================================================================================
-class AT3DTestOperator(bpy.types.Operator):
-    bl_idname = "object.at3dtestoperator"
-    bl_label = "ATTestOperator"
-
-    def execute(self, context):
-        actmat = bpy.context.active_object.active_material
-        return {'FINISHED'}
-
-
-
+    
 #===========================================================================================================
 classes = (
     OptiEVRenderOperator,
@@ -487,15 +332,11 @@ classes = (
     Rename_Operator,
     CleanObjectOperator,
     ReSetOriginOperator,
-    QuickPhysics_CalcPhysics,
-    QuickPhysics_AddActivePhysics,
-    QuickPhysics_ApplyPhysics,
     Translation,
     Setstartframe,
     Setendframe,
     StopLoop_OP,
     ExportFBX,
-    AT3DTestOperator,
 )
 
 
