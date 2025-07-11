@@ -2,9 +2,12 @@ from bpy.props import (BoolProperty, EnumProperty, FloatProperty, FloatVectorPro
                        StringProperty)
 from bpy.types import PropertyGroup
 from bpy.utils import register_class, unregister_class
+from ..config.constants import PhysicsSettings, ExportSettings, PathConstants
 
 
-class AtPropgroup(PropertyGroup):
+class ToolProperties(PropertyGroup):
+    """工具属性组"""
+    
     my_bool: BoolProperty(
         name="Enable or Disable",
         description="A bool property",
@@ -39,7 +42,7 @@ class AtPropgroup(PropertyGroup):
         name="User Input",
         description=":",
         default="",
-        maxlen=1024,
+        maxlen=PathConstants.MAX_STRING_LENGTH,
     ) # type: ignore
 
     my_enum: EnumProperty(
@@ -58,17 +61,19 @@ class AtPropgroup(PropertyGroup):
         ],
         name="Export Rule",
         description="Select an option",
+        default='UNREAL'
     ) # type: ignore
     
     physics_friction: FloatProperty(
         description="Friction",
-        default=0.5,
+        default=PhysicsSettings.DEFAULT_FRICTION,
         min=0.0, max=1.0
     ) # type: ignore
     
     physics_time_scale: FloatProperty(
         description="Simulation speed",
-        default=5.0, min=0.0, max=20.0
+        default=PhysicsSettings.DEFAULT_TIME_SCALE, 
+        min=0.0, max=20.0
     ) # type: ignore
     
     is_running_physics: BoolProperty(
@@ -84,73 +89,20 @@ class AtPropgroup(PropertyGroup):
     exportpath: StringProperty(
         name='Export Path',
         description='',
-        # default='\\10.234.36.135\share\美术资源\Software 软件\Blender插件\【Vertex Games Tools】',
         default='',
-        subtype='DIR_PATH'  # 指定为目录路径
+        subtype=PathConstants.DEFAULT_EXPORT_SUBTYPE  # 指定为目录路径
     ) # type: ignore
     
     movetexlocation: BoolProperty(
         description="",
         default=True
     ) # type: ignore
-    
-    col_tex_name: StringProperty(
-        name="Color Texture Name",
-        description="",
-        default="",
-        maxlen=1024,
-    )   # type: ignore
-    
-    opa_tex_name: StringProperty(
-        name="Opacity Texture Name",
-        description="",
-        default="",
-        maxlen=1024,
-    )   # type: ignore
 
-    rough_tex_name: StringProperty(
-        name="Roughness Texture Name",
-        description="",
-        default="",
-        maxlen=1024,
-    ) # type: ignore
-    
-    metal_tex_name: StringProperty(
-        name="Metallic Texture Name",
-        description="",
-        default="",
-        maxlen=1024,
-    ) # type: ignore
-    
-    ao_tex_name: StringProperty(
-        name="AO Texture Name",
-        description="",
-        default="",
-        maxlen=1024, 
-    ) # type: ignore
-    
-    nor_tex_name: StringProperty(
-        name="Normal Texture Name",
-        description="",
-        default="",
-        maxlen=1024, 
-    ) # type: ignore
-    
-    #     maxlen=1024,
-    #     subtype='FILE_PATH'
-    #     )
-    # addonaddress: StringProperty(
-    #     name='addonaddress',
-    #     description='',
-    #     default='',
-    #     maxlen=1024,
-    #     subtype='DIR_PATH'
-    #     )
 
-#===========================================================================================================
+# 保持向后兼容
+AtPropgroup = ToolProperties
 
-classes = (AtPropgroup,
-           )
+classes = (ToolProperties,)
 
 
 def register():
@@ -162,4 +114,4 @@ def register():
 def unregister():
     global classes
     for cls in classes:
-        unregister_class(cls)
+        unregister_class(cls) 
