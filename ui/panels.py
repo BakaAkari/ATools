@@ -153,6 +153,9 @@ class NodePanel(bpy.types.Panel):
             
             # 导出合并贴图按钮
             atex_column.operator('atex.merge_textures', text="导出合并贴图")
+            
+            # 创建材质按钮
+            atex_column.operator('atex.create_material', text="创建材质")
 
         # Operator 操作面板
         header, operator_panel = layout.panel("operator_panel", default_closed=False)

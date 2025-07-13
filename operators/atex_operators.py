@@ -234,9 +234,149 @@ class ATexMergeTexturesOperator(bpy.types.Operator):
             return {'CANCELLED'}
 
 
+class ATexCreateMaterialOperator(bpy.types.Operator):
+    """根据资产名和贴图自动创建UE材质"""
+    bl_idname = "atex.create_material"
+    bl_label = "创建材质"
+
+    def execute(self, context):
+        import_node_name = "UE Shader"
+        wm = context.window_manager
+        atex_props = wm.atex_props
+        output_dir = bpy.path.abspath(atex_props.output_path)
+        asset_name = atex_props.asset_name.strip()
+        if not output_dir or not os.path.isdir(output_dir):
+            self.report({'ERROR'}, "请先设置有效的输出路径")
+            return {'CANCELLED'}
+        if not asset_name:
+            self.report({'ERROR'}, "请先输入资产名")
+            return {'CANCELLED'}
+        # 检查贴图文件是否存在
+        found = False
+        for suffix in ["Col", "ORM", "Nor", "Emi"]:
+            fname = f"T_{asset_name}_{suffix}.png"
+            if os.path.exists(os.path.join(output_dir, fname)):
+                found = True
+                break
+        if not found:
+            self.report({'ERROR'}, f"输出路径下未找到以T_{asset_name}_开头的贴图文件")
+            return {'CANCELLED'}
+        # 创建新材质
+        mat_name = f"MI_{asset_name}"
+        mat = bpy.data.materials.new(mat_name)
+        mat.use_nodes = True
+        node_tree = mat.node_tree
+        nodes = node_tree.nodes
+        links = node_tree.links
+        # 查找并删除BSDF节点，记录其位置
+        bsdf_node = None
+        for node in nodes:
+            if node.type == 'BSDF_PRINCIPLED':
+                bsdf_node = node
+                break
+        if bsdf_node:
+            loc = bsdf_node.location.copy()
+            nodes.remove(bsdf_node)
+        else:
+            loc = (0, 0)
+        # 选中新建材质
+        if context.active_object:
+            context.active_object.active_material = mat
+        # 查找材质输出节点
+        output_node = None
+        for node in nodes:
+            if node.type == 'OUTPUT_MATERIAL':
+                output_node = node
+                break
+        if not output_node:
+            output_node = nodes.new('ShaderNodeOutputMaterial')
+            output_node.location = (loc[0]+400, loc[1])
+        # 检查是否已有UE Shader节点组
+        ue_group_node = None
+        for node in nodes:
+            if node.type == 'GROUP' and node.node_tree and node.node_tree.name == import_node_name:
+                ue_group_node = node
+                break
+        if not ue_group_node:
+            # 确保节点组已加载
+            if not bpy.data.node_groups.get(import_node_name):
+                bpy.ops.node.create_ue_pbr_group()
+            # 新建节点组实例
+            ue_group_node = nodes.new('ShaderNodeGroup')
+            ue_group_node.node_tree = bpy.data.node_groups[import_node_name]
+        # 放置UE Shader节点组在输出节点左侧200
+        ue_group_node.location = (output_node.location[0] - 200, output_node.location[1])
+        # 自动连接BSDF输出到Surface输入
+        # 查找BSDF输出口
+        bsdf_out = None
+        for out in ue_group_node.outputs:
+            if out.name.lower() == 'bsdf':
+                bsdf_out = out
+                break
+        # 查找Surface输入口
+        surface_in = None
+        for inp in output_node.inputs:
+            if inp.name.lower() == 'surface':
+                surface_in = inp
+                break
+        # 连接
+        if bsdf_out and surface_in:
+            links.new(ue_group_node.outputs[bsdf_out.name], output_node.inputs[surface_in.name])
+        # 自动创建贴图节点并连接
+        tex_types = [
+            ("Col", "DIF", "Alpha"),
+            ("ORM", "ORM", None),
+            ("Nor", "NRM", None),
+            ("Emi", "Emission Color", "Emission Strength")
+        ]
+        tex_nodes = []
+        tex_y_start = ue_group_node.location[1] + 220 * (len(tex_types)-1) // 2
+        tex_x = ue_group_node.location[0] - 400
+        found_tex = 0
+        for idx, (suffix, ue_input, alpha_input) in enumerate(tex_types):
+            tex_path = os.path.join(output_dir, f"T_{asset_name}_{suffix}.png")
+            if not os.path.exists(tex_path):
+                if suffix == "Emi":
+                    continue  # Emi可选
+                else:
+                    continue  # 其他贴图理论上已检查过
+            # 加载图片到Blender
+            img = None
+            for im in bpy.data.images:
+                if os.path.abspath(bpy.path.abspath(im.filepath)) == os.path.abspath(tex_path):
+                    img = im
+                    break
+            if not img:
+                img = bpy.data.images.load(tex_path)
+            # 创建Texture节点
+            tex_node = nodes.new('ShaderNodeTexImage')
+            tex_node.image = img
+            tex_node.label = suffix + " Tex Node"
+            tex_node.location = (tex_x, tex_y_start - found_tex * 220)
+            # 设置色彩空间
+            if suffix in ("ORM", "Nor"):
+                tex_node.image.colorspace_settings.name = 'Non-Color'
+            tex_nodes.append((suffix, tex_node, ue_input, alpha_input))
+            found_tex += 1
+        # 自动连接贴图节点到UE Shader节点
+        for suffix, tex_node, ue_input, alpha_input in tex_nodes:
+            # 连接Color到主输入
+            for inp in ue_group_node.inputs:
+                if inp.name == ue_input:
+                    links.new(tex_node.outputs['Color'], ue_group_node.inputs[ue_input])
+            # 连接Alpha到副输入（如有）
+            if alpha_input and 'Alpha' in tex_node.outputs:
+                for inp in ue_group_node.inputs:
+                    if inp.name == alpha_input:
+                        links.new(tex_node.outputs['Alpha'], ue_group_node.inputs[alpha_input])
+        self.report({'INFO'}, f"已创建材质: {mat_name} 并放置UE Shader节点组")
+        return {'FINISHED'}
+
+
 classes = (
     ATexPickNodeOperator,
     ATexMergeTexturesOperator,
+    ATexCreateMaterialOperator,
 )
 
 

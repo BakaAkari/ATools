@@ -99,17 +99,17 @@ class NodeProjectionOperator(bpy.types.Operator):
 
 
 class CreateUEPBRNodeGroupOperator(bpy.types.Operator):
-    """从assets.blend文件中append UE ORM节点组"""
+    """从assets.blend文件中append UE Shader节点组"""
     bl_idname = "node.create_ue_pbr_group"
     bl_label = "Create UE PBR Node Group"
     bl_description = "从assets.blend文件中加载Unreal Engine规则的PBR材质节点组"
 
     def execute(self, context):
         try:
-            # 检查是否已存在UE ORM节点组
-            existing_group = bpy.data.node_groups.get("UE ORM")
+            # 检查是否已存在UE Shader节点组
+            existing_group = bpy.data.node_groups.get("UE Shader")
             if existing_group:
-                self.report({'INFO'}, "节点组 'UE ORM' 已存在，可直接使用")
+                self.report({'INFO'}, "节点组 'UE Shader' 已存在，可直接使用")
                 return {'FINISHED'}
             
             # 获取插件目录路径
@@ -121,17 +121,17 @@ class CreateUEPBRNodeGroupOperator(bpy.types.Operator):
                 self.report({'ERROR'}, f"找不到assets.blend文件: {assets_path}")
                 return {'CANCELLED'}
             
-            # 从assets.blend文件中append UE ORM节点组
+            # 从assets.blend文件中append UE Shader节点组
             with bpy.data.libraries.load(assets_path, link=False) as (data_from, data_to):
-                if "UE ORM" in data_from.node_groups:
-                    data_to.node_groups = ["UE ORM"]
+                if "UE Shader" in data_from.node_groups:
+                    data_to.node_groups = ["UE Shader"]
                 else:
-                    self.report({'ERROR'}, "assets.blend文件中未找到'UE ORM'节点组")
+                    self.report({'ERROR'}, "assets.blend文件中未找到'UE Shader'节点组")
                     return {'CANCELLED'}
             
             # 验证节点组是否成功加载
-            if bpy.data.node_groups.get("UE ORM"):
-                self.report({'INFO'}, "成功加载 UE ORM 节点组")
+            if bpy.data.node_groups.get("UE Shader"):
+                self.report({'INFO'}, "成功加载 UE Shader 节点组")
                 return {'FINISHED'}
             else:
                 self.report({'ERROR'}, "加载节点组失败")
