@@ -17,7 +17,8 @@ from .operators import (
     node_operators,
     physics_operators,
     frame_operators,
-    export_operators
+    export_operators,
+    atex_operators
 )
 
 from .ui import (
@@ -35,7 +36,7 @@ bl_info = {
     "name": "ATools",
     "description": "Baka_Akari's fixed Quixel Bridge Link plugin suite",
     "author": "Baka_Akari",
-    "version": (0, 0, 5),
+    "version": (0, 0, 8),
     "blender": (2, 8, 0),
     "location": "View3D",
     "warning": "Multiple functions are in beta.",
@@ -56,6 +57,7 @@ def register():
     physics_operators.register()
     frame_operators.register()
     export_operators.register()
+    atex_operators.register()
     
     # 注册UI
     panels.register()
@@ -64,6 +66,7 @@ def register():
     # 注册属性到WindowManager
     bpy.types.WindowManager.atprops = PointerProperty(type=property_groups.ToolProperties)
     bpy.types.WindowManager.quick_physics = PointerProperty(type=property_groups.ToolProperties)
+    bpy.types.WindowManager.atex_props = PointerProperty(type=property_groups.ATexProperties)
     
     # 添加UI回调函数
     bpy.types.STATUSBAR_HT_header.append(ui_functions.translation_ui_function)
@@ -83,6 +86,7 @@ def unregister():
     physics_operators.unregister()
     node_operators.unregister()
     mesh_operators.unregister()
+    atex_operators.unregister()
     
     # 注销属性组
     property_groups.unregister()
@@ -90,6 +94,7 @@ def unregister():
     # 移除属性
     del bpy.types.WindowManager.atprops
     del bpy.types.WindowManager.quick_physics
+    del bpy.types.WindowManager.atex_props
     
     # 移除UI回调函数
     bpy.types.STATUSBAR_HT_header.remove(ui_functions.translation_ui_function)
