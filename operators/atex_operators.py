@@ -317,9 +317,25 @@ class ATexCreateMaterialOperator(bpy.types.Operator):
             if inp.name.lower() == 'surface':
                 surface_in = inp
                 break
-        # 连接
+        # 连接BSDF到Surface
         if bsdf_out and surface_in:
             links.new(ue_group_node.outputs[bsdf_out.name], output_node.inputs[surface_in.name])
+        
+        # 连接Displacement输出到Material Output的Displacement输入
+        disp_out = None
+        for out in ue_group_node.outputs:
+            if out.name.lower() in ['disp', 'displacement']:
+                disp_out = out
+                break
+        
+        disp_in = None
+        for inp in output_node.inputs:
+            if inp.name.lower() == 'displacement':
+                disp_in = inp
+                break
+        
+        if disp_out and disp_in:
+            links.new(ue_group_node.outputs[disp_out.name], output_node.inputs[disp_in.name])
         # 自动创建贴图节点并连接
         tex_types = [
             ("Col", None, None),  # 直接连接到Base Color
@@ -329,8 +345,8 @@ class ATexCreateMaterialOperator(bpy.types.Operator):
         ]
         tex_nodes = []
         tex_y_start = ue_group_node.location[1] + 300 * (len(tex_types)-1) // 2
-        # 贴图节点X位置相对分离节点左侧250，分离节点相对UE Shader左侧200
-        tex_x = ue_group_node.location[0] - 200 - 250  # = UE Shader - 450
+        # 贴图节点相对UE Shader向左偏移700
+        tex_x = ue_group_node.location[0] - 700
         found_tex = 0
         
         for idx, (suffix, ue_input, alpha_input) in enumerate(tex_types):
@@ -372,43 +388,17 @@ class ATexCreateMaterialOperator(bpy.types.Operator):
                         break
                         
             elif suffix == "ORM":
-                # ORM贴图需要通道分离：R=AO, G=Roughness, B=Metallic
-                try:
-                    separate_node = nodes.new('ShaderNodeSeparateColor')
-                except:
-                    separate_node = nodes.new('ShaderNodeSeparateRGB')
-                    
-                separate_node.location = (ue_group_node.location[0] - 200, ue_group_node.location[1] + 100)
-                separate_node.label = "ORM Separate"
-                
-                # 连接贴图到分离节点
-                if 'Color' in separate_node.inputs:
-                    links.new(tex_node.outputs['Color'], separate_node.inputs['Color'])
-                else:
-                    links.new(tex_node.outputs['Color'], separate_node.inputs['Image'])
-                
-                # 连接各通道到对应输入，支持多种可能的输入名称
-                # 确定分离节点的输出名称（兼容新老版本）
-                if "Red" in separate_node.outputs:
-                    channel_outputs = ["Red", "Green", "Blue"]
-                else:
-                    channel_outputs = ["R", "G", "B"]
-                    
-                channel_mapping = [
-                    (channel_outputs[0], ["AO", "Ambient Occlusion"]), 
-                    (channel_outputs[1], ["Roughness"]), 
-                    (channel_outputs[2], ["Metallic", "Metalness"])
-                ]
-                for output_name, input_names in channel_mapping:
-                    for input_name in input_names:
-                        found_input = False
-                        for inp in ue_group_node.inputs:
-                            if inp.name == input_name:
-                                links.new(separate_node.outputs[output_name], inp)
-                                found_input = True
-                                break
-                        if found_input:
+                # ORM贴图直接连接到ORM输入（支持多种可能的输入名称）
+                orm_names = ["ORM", "Occlusion Roughness Metallic"]
+                for orm_name in orm_names:
+                    found_input = False
+                    for inp in ue_group_node.inputs:
+                        if inp.name == orm_name:
+                            links.new(tex_node.outputs['Color'], inp)
+                            found_input = True
                             break
+                    if found_input:
+                        break
                             
             elif suffix == "Nor":
                 # Nor贴图直接连接到Normal（支持多种可能的输入名称）
@@ -424,43 +414,17 @@ class ATexCreateMaterialOperator(bpy.types.Operator):
                         break
                         
             elif suffix == "OED":
-                # OED贴图需要通道分离：R=Opacity, G=Emission Alpha, B=Displacement
-                try:
-                    separate_node = nodes.new('ShaderNodeSeparateColor')
-                except:
-                    separate_node = nodes.new('ShaderNodeSeparateRGB')
-                    
-                separate_node.location = (ue_group_node.location[0] - 200, ue_group_node.location[1] - 100)
-                separate_node.label = "OED Separate"
-                
-                # 连接贴图到分离节点
-                if 'Color' in separate_node.inputs:
-                    links.new(tex_node.outputs['Color'], separate_node.inputs['Color'])
-                else:
-                    links.new(tex_node.outputs['Color'], separate_node.inputs['Image'])
-                
-                # 连接各通道到对应输入，支持多种可能的输入名称
-                # 确定分离节点的输出名称（兼容新老版本）
-                if "Red" in separate_node.outputs:
-                    channel_outputs = ["Red", "Green", "Blue"]
-                else:
-                    channel_outputs = ["R", "G", "B"]
-                    
-                channel_mapping = [
-                    (channel_outputs[0], ["Alpha", "Opacity"]), 
-                    (channel_outputs[1], ["Emission Strength", "Emission Alpha"]), 
-                    (channel_outputs[2], ["Displacement", "Height"])
-                ]
-                for output_name, input_names in channel_mapping:
-                    for input_name in input_names:
-                        found_input = False
-                        for inp in ue_group_node.inputs:
-                            if inp.name == input_name:
-                                links.new(separate_node.outputs[output_name], inp)
-                                found_input = True
-                                break
-                        if found_input:
+                # OED贴图直接连接到OED输入（支持多种可能的输入名称）
+                oed_names = ["OED", "Opacity Emission Displacement"]
+                for oed_name in oed_names:
+                    found_input = False
+                    for inp in ue_group_node.inputs:
+                        if inp.name == oed_name:
+                            links.new(tex_node.outputs['Color'], inp)
+                            found_input = True
                             break
+                    if found_input:
+                        break
                             
             tex_nodes.append((suffix, tex_node))
             found_tex += 1

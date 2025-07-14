@@ -18,7 +18,8 @@ from .operators import (
     physics_operators,
     frame_operators,
     export_operators,
-    atex_operators
+    atex_operators,
+    collection_operators
 )
 
 from .ui import (
@@ -58,6 +59,7 @@ def register():
     frame_operators.register()
     export_operators.register()
     atex_operators.register()
+    collection_operators.register()
     
     # 注册UI
     panels.register()
@@ -87,6 +89,7 @@ def unregister():
     node_operators.unregister()
     mesh_operators.unregister()
     atex_operators.unregister()
+    collection_operators.unregister()
     
     # 注销属性组
     property_groups.unregister()
