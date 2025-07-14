@@ -99,10 +99,10 @@ class NodeProjectionOperator(bpy.types.Operator):
 
 
 class CreateUEPBRNodeGroupOperator(bpy.types.Operator):
-    """从assets.blend文件中append UE Shader节点组"""
+    """从assets.blend文件中link UE Shader节点组"""
     bl_idname = "node.create_ue_pbr_group"
     bl_label = "Create UE PBR Node Group"
-    bl_description = "从assets.blend文件中加载Unreal Engine规则的PBR材质节点组"
+    bl_description = "从assets.blend文件中链接Unreal Engine规则的PBR材质节点组"
 
     def execute(self, context):
         try:
@@ -121,8 +121,8 @@ class CreateUEPBRNodeGroupOperator(bpy.types.Operator):
                 self.report({'ERROR'}, f"找不到assets.blend文件: {assets_path}")
                 return {'CANCELLED'}
             
-            # 从assets.blend文件中append UE Shader节点组
-            with bpy.data.libraries.load(assets_path, link=False) as (data_from, data_to):
+            # 从assets.blend文件中link UE Shader节点组
+            with bpy.data.libraries.load(assets_path, link=True) as (data_from, data_to):
                 if "UE Shader" in data_from.node_groups:
                     data_to.node_groups = ["UE Shader"]
                 else:

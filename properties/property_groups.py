@@ -60,9 +60,9 @@ class ATexProperties(PropertyGroup):
         default=""
     ) # type: ignore
     
-    emic_node: StringProperty(
-        name="EmiC",
-        description="选择发光颜色贴图节点",
+    disp_node: StringProperty(
+        name="Disp",
+        description="选择位移贴图节点",
         default=""
     ) # type: ignore
     

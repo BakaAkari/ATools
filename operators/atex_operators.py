@@ -106,7 +106,7 @@ class ATexMergeTexturesOperator(bpy.types.Operator):
                 'nor_node': ('normal', 'Nor'),
                 'ao_node': ('ao', 'AO'),
                 'opa_node': ('opacity', 'Opa'),
-                'emic_node': ('emission_color', 'EmiC'),
+                'disp_node': ('displacement', 'Disp'),
                 'emia_node': ('emission_alpha', 'EmiA')
             }
             
@@ -137,11 +137,9 @@ class ATexMergeTexturesOperator(bpy.types.Operator):
                         else:
                             self.report({'WARNING'}, f"{label} 节点不存在: {node_name}")
             
-            # 检查必需的贴图
-            required_textures = ['diffuse', 'ao', 'normal']
-            missing_textures = [texture for texture in required_textures if texture not in texture_paths]
-            if missing_textures:
-                self.report({'ERROR'}, f"缺少必需的贴图: {', '.join(missing_textures)}")
+            # 检查必需的贴图（仅检查Col贴图）
+            if 'diffuse' not in texture_paths:
+                self.report({'ERROR'}, "请先选择Col贴图节点")
                 return {'CANCELLED'}
             
             if not basename:
@@ -153,15 +151,15 @@ class ATexMergeTexturesOperator(bpy.types.Operator):
             
             # 添加必需的参数
             cmd_args.extend(['--diffuse', texture_paths['diffuse']])
-            cmd_args.extend(['--ao', texture_paths['ao']])
-            cmd_args.extend(['--normal', texture_paths['normal']])
             
             # 添加可选的参数
             optional_mapping = {
+                'ao': '--ao',
+                'normal': '--normal',
                 'roughness': '--roughness',
                 'metallic': '--metallic',
                 'opacity': '--opacity',
-                'emission_color': '--emission-color',
+                'displacement': '--displacement',
                 'emission_alpha': '--emission-alpha'
             }
             
@@ -253,7 +251,7 @@ class ATexCreateMaterialOperator(bpy.types.Operator):
             return {'CANCELLED'}
         # 检查贴图文件是否存在
         found = False
-        for suffix in ["Col", "ORM", "Nor", "Emi"]:
+        for suffix in ["Col", "ORM", "Nor", "OED"]:
             fname = f"T_{asset_name}_{suffix}.png"
             if os.path.exists(os.path.join(output_dir, fname)):
                 found = True
@@ -324,22 +322,22 @@ class ATexCreateMaterialOperator(bpy.types.Operator):
             links.new(ue_group_node.outputs[bsdf_out.name], output_node.inputs[surface_in.name])
         # 自动创建贴图节点并连接
         tex_types = [
-            ("Col", "DIF", "Alpha"),
-            ("ORM", "ORM", None),
-            ("Nor", "NRM", None),
-            ("Emi", "Emission Color", "Emission Strength")
+            ("Col", None, None),  # 直接连接到Base Color
+            ("ORM", None, None),  # 需要通道分离处理
+            ("Nor", None, None),  # 直接连接到Normal
+            ("OED", None, None)   # 需要通道分离处理
         ]
         tex_nodes = []
-        tex_y_start = ue_group_node.location[1] + 220 * (len(tex_types)-1) // 2
-        tex_x = ue_group_node.location[0] - 400
+        tex_y_start = ue_group_node.location[1] + 300 * (len(tex_types)-1) // 2
+        # 贴图节点X位置相对分离节点左侧250，分离节点相对UE Shader左侧200
+        tex_x = ue_group_node.location[0] - 200 - 250  # = UE Shader - 450
         found_tex = 0
+        
         for idx, (suffix, ue_input, alpha_input) in enumerate(tex_types):
             tex_path = os.path.join(output_dir, f"T_{asset_name}_{suffix}.png")
             if not os.path.exists(tex_path):
-                if suffix == "Emi":
-                    continue  # Emi可选
-                else:
-                    continue  # 其他贴图理论上已检查过
+                continue  # 贴图文件不存在，跳过
+                
             # 加载图片到Blender
             img = None
             for im in bpy.data.images:
@@ -348,27 +346,124 @@ class ATexCreateMaterialOperator(bpy.types.Operator):
                     break
             if not img:
                 img = bpy.data.images.load(tex_path)
+                
             # 创建Texture节点
             tex_node = nodes.new('ShaderNodeTexImage')
             tex_node.image = img
             tex_node.label = suffix + " Tex Node"
-            tex_node.location = (tex_x, tex_y_start - found_tex * 220)
+            tex_node.location = (tex_x, tex_y_start - found_tex * 300)
+            
             # 设置色彩空间
-            if suffix in ("ORM", "Nor"):
+            if suffix != "Col":
                 tex_node.image.colorspace_settings.name = 'Non-Color'
-            tex_nodes.append((suffix, tex_node, ue_input, alpha_input))
+                
+            # 处理不同类型的贴图
+            if suffix == "Col":
+                # Col贴图直接连接到Base Color（支持多种可能的输入名称）
+                base_color_names = ["Base Color", "Diffuse", "Col", "Color"]
+                for base_color_name in base_color_names:
+                    found_input = False
+                    for inp in ue_group_node.inputs:
+                        if inp.name == base_color_name:
+                            links.new(tex_node.outputs['Color'], inp)
+                            found_input = True
+                            break
+                    if found_input:
+                        break
+                        
+            elif suffix == "ORM":
+                # ORM贴图需要通道分离：R=AO, G=Roughness, B=Metallic
+                try:
+                    separate_node = nodes.new('ShaderNodeSeparateColor')
+                except:
+                    separate_node = nodes.new('ShaderNodeSeparateRGB')
+                    
+                separate_node.location = (ue_group_node.location[0] - 200, ue_group_node.location[1] + 100)
+                separate_node.label = "ORM Separate"
+                
+                # 连接贴图到分离节点
+                if 'Color' in separate_node.inputs:
+                    links.new(tex_node.outputs['Color'], separate_node.inputs['Color'])
+                else:
+                    links.new(tex_node.outputs['Color'], separate_node.inputs['Image'])
+                
+                # 连接各通道到对应输入，支持多种可能的输入名称
+                # 确定分离节点的输出名称（兼容新老版本）
+                if "Red" in separate_node.outputs:
+                    channel_outputs = ["Red", "Green", "Blue"]
+                else:
+                    channel_outputs = ["R", "G", "B"]
+                    
+                channel_mapping = [
+                    (channel_outputs[0], ["AO", "Ambient Occlusion"]), 
+                    (channel_outputs[1], ["Roughness"]), 
+                    (channel_outputs[2], ["Metallic", "Metalness"])
+                ]
+                for output_name, input_names in channel_mapping:
+                    for input_name in input_names:
+                        found_input = False
+                        for inp in ue_group_node.inputs:
+                            if inp.name == input_name:
+                                links.new(separate_node.outputs[output_name], inp)
+                                found_input = True
+                                break
+                        if found_input:
+                            break
+                            
+            elif suffix == "Nor":
+                # Nor贴图直接连接到Normal（支持多种可能的输入名称）
+                normal_names = ["Normal", "Nor", "Normal Map"]
+                for normal_name in normal_names:
+                    found_input = False
+                    for inp in ue_group_node.inputs:
+                        if inp.name == normal_name:
+                            links.new(tex_node.outputs['Color'], inp)
+                            found_input = True
+                            break
+                    if found_input:
+                        break
+                        
+            elif suffix == "OED":
+                # OED贴图需要通道分离：R=Opacity, G=Emission Alpha, B=Displacement
+                try:
+                    separate_node = nodes.new('ShaderNodeSeparateColor')
+                except:
+                    separate_node = nodes.new('ShaderNodeSeparateRGB')
+                    
+                separate_node.location = (ue_group_node.location[0] - 200, ue_group_node.location[1] - 100)
+                separate_node.label = "OED Separate"
+                
+                # 连接贴图到分离节点
+                if 'Color' in separate_node.inputs:
+                    links.new(tex_node.outputs['Color'], separate_node.inputs['Color'])
+                else:
+                    links.new(tex_node.outputs['Color'], separate_node.inputs['Image'])
+                
+                # 连接各通道到对应输入，支持多种可能的输入名称
+                # 确定分离节点的输出名称（兼容新老版本）
+                if "Red" in separate_node.outputs:
+                    channel_outputs = ["Red", "Green", "Blue"]
+                else:
+                    channel_outputs = ["R", "G", "B"]
+                    
+                channel_mapping = [
+                    (channel_outputs[0], ["Alpha", "Opacity"]), 
+                    (channel_outputs[1], ["Emission Strength", "Emission Alpha"]), 
+                    (channel_outputs[2], ["Displacement", "Height"])
+                ]
+                for output_name, input_names in channel_mapping:
+                    for input_name in input_names:
+                        found_input = False
+                        for inp in ue_group_node.inputs:
+                            if inp.name == input_name:
+                                links.new(separate_node.outputs[output_name], inp)
+                                found_input = True
+                                break
+                        if found_input:
+                            break
+                            
+            tex_nodes.append((suffix, tex_node))
             found_tex += 1
-        # 自动连接贴图节点到UE Shader节点
-        for suffix, tex_node, ue_input, alpha_input in tex_nodes:
-            # 连接Color到主输入
-            for inp in ue_group_node.inputs:
-                if inp.name == ue_input:
-                    links.new(tex_node.outputs['Color'], ue_group_node.inputs[ue_input])
-            # 连接Alpha到副输入（如有）
-            if alpha_input and 'Alpha' in tex_node.outputs:
-                for inp in ue_group_node.inputs:
-                    if inp.name == alpha_input:
-                        links.new(tex_node.outputs['Alpha'], ue_group_node.inputs[alpha_input])
         self.report({'INFO'}, f"已创建材质: {mat_name} 并放置UE Shader节点组")
         return {'FINISHED'}
 

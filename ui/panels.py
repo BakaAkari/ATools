@@ -115,7 +115,7 @@ class NodePanel(bpy.types.Panel):
                 ('nor_node', "Nor"),
                 ('ao_node', "AO"),
                 ('opa_node', "Opa"),
-                ('emic_node', "EmiC"),
+                ('disp_node', "Disp"),
                 ('emia_node', "EmiA")
             ]
             
