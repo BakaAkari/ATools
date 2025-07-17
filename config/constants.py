@@ -26,9 +26,9 @@ class ExportSettings:
 
 # UI 常量
 class UIConstants:
-    PANEL_CATEGORY = "Tool"
-    PANEL_ORDER_MAIN = 80
-    PANEL_ORDER_PHYSICS = 81
+    PANEL_CATEGORY = "ATB"
+    PANEL_ORDER_MAIN = 10
+    PANEL_ORDER_PHYSICS = 11
     PANEL_ORDER_NODE = 15
 
 # 文件路径常量
