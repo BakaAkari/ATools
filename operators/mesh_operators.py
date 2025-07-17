@@ -116,11 +116,12 @@ class MeshRenameOperator(bpy.types.Operator):
             
             renamed_count = 0
             failed_renames = []
+            mesh_count = len(mesh_objects)
             
             # 重命名网格对象
             for i, obj in enumerate(mesh_objects):
                 try:
-                    self._rename_object_and_mesh(obj, collection_name, i + 1)
+                    self._rename_object_and_mesh(obj, collection_name, i + 1, mesh_count)
                     renamed_count += 1
                 except Exception as e:
                     failed_renames.append(f"{obj.name}: {str(e)}")
@@ -141,10 +142,15 @@ class MeshRenameOperator(bpy.types.Operator):
             self.report({'ERROR'}, f"重命名操作失败: {str(e)}")
             return {'CANCELLED'}
     
-    def _rename_object_and_mesh(self, obj, collection_name, index):
+    def _rename_object_and_mesh(self, obj, collection_name, index, total_count):
         """重命名对象和其网格数据"""
-        # 生成新名称（集合名_序号）
-        new_name = f"{collection_name}_{str(index).zfill(2)}"
+        # 根据对象数量决定是否添加后缀
+        if total_count == 1:
+            # 只有一个对象时，直接使用集合名称
+            new_name = collection_name
+        else:
+            # 多个对象时，添加序号后缀
+            new_name = f"{collection_name}_{str(index).zfill(2)}"
         
         # 重命名对象
         old_obj_name = obj.name
