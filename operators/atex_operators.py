@@ -263,6 +263,7 @@ class ATexCreateMaterialOperator(bpy.types.Operator):
         mat_name = f"MI_{asset_name}"
         mat = bpy.data.materials.new(mat_name)
         mat.use_nodes = True
+        mat.displacement_method = 'BOTH'
         node_tree = mat.node_tree
         nodes = node_tree.nodes
         links = node_tree.links
@@ -448,4 +449,4 @@ def register():
 def unregister():
     global classes
     for cls in classes:
-        unregister_class(cls) 
+        unregister_class(cls)

@@ -84,7 +84,8 @@ class FBXExportOperator(bpy.types.Operator):
                 use_space_transform=True, 
                 bake_space_transform=True, 
                 axis_forward=ExportSettings.UNREAL_AXIS_FORWARD, 
-                axis_up=ExportSettings.UNREAL_AXIS_UP
+                axis_up=ExportSettings.UNREAL_AXIS_UP,
+                mesh_smooth_type='EDGE',
             )
         elif export_rule == 'UNITY':
             bpy.ops.export_scene.fbx(
