@@ -160,6 +160,30 @@ class MeshRenameOperator(bpy.types.Operator):
         if obj.data:
             obj.data.name = new_name
             print(f"重命名: {old_obj_name} -> {new_name}")
+        
+        # 处理UV通道
+        self._process_uv_channels(obj)
+    
+    def _process_uv_channels(self, obj):
+        """处理对象的UV通道"""
+        mesh = obj.data
+        uv_layers = mesh.uv_layers
+        
+        # 检查对象是否存在UV通道
+        if not uv_layers:
+            # 不存在UV通道，新建一个
+            new_uv = uv_layers.new(name="UVMap")
+            print(f"为 {obj.name} 创建新的UV通道: UVMap")
+        else:
+            # 存在UV通道，检查UV通道0的名称
+            uv_channel_0 = uv_layers[0]
+            if uv_channel_0.name != "UVMap":
+                # UV通道0的名称不是UVMap，重命名
+                uv_channel_0.name = "UVMap"
+                print(f"将 {obj.name} 的UV通道0重命名为UVMap")
+            else:
+                # UV通道0的名称已经是UVMap，不做修改
+                print(f"{obj.name} 的UV通道0已经是UVMap，无需修改")
 
 
 class MeshCleanOperator(bpy.types.Operator):
