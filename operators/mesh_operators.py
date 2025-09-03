@@ -165,25 +165,25 @@ class MeshRenameOperator(bpy.types.Operator):
         self._process_uv_channels(obj)
     
     def _process_uv_channels(self, obj):
-        """处理对象的UV通道"""
+        """处理对象的UV通道，根据UV通道数量重命名为UVMap_01, UVMap_02等"""
         mesh = obj.data
         uv_layers = mesh.uv_layers
         
         # 检查对象是否存在UV通道
         if not uv_layers:
             # 不存在UV通道，新建一个
-            new_uv = uv_layers.new(name="UVMap")
-            print(f"为 {obj.name} 创建新的UV通道: UVMap")
+            new_uv = uv_layers.new(name="UVMap_01")
+            print(f"为 {obj.name} 创建新的UV通道: UVMap_01")
         else:
-            # 存在UV通道，检查UV通道0的名称
-            uv_channel_0 = uv_layers[0]
-            if uv_channel_0.name != "UVMap":
-                # UV通道0的名称不是UVMap，重命名
-                uv_channel_0.name = "UVMap"
-                print(f"将 {obj.name} 的UV通道0重命名为UVMap")
-            else:
-                # UV通道0的名称已经是UVMap，不做修改
-                print(f"{obj.name} 的UV通道0已经是UVMap，无需修改")
+            # 存在UV通道，根据数量重命名所有UV通道
+            uv_count = len(uv_layers)
+            for i, uv_layer in enumerate(uv_layers):
+                expected_name = f"UVMap_{str(i + 1).zfill(2)}"
+                if uv_layer.name != expected_name:
+                    uv_layer.name = expected_name
+                    print(f"将 {obj.name} 的UV通道{i}重命名为{expected_name}")
+                else:
+                    print(f"{obj.name} 的UV通道{i}已经是{expected_name}，无需修改")
 
 
 class MeshCleanOperator(bpy.types.Operator):
