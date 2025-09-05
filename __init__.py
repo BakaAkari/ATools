@@ -17,7 +17,6 @@ from .operators import (
     node_operators,
     physics_operators,
     frame_operators,
-    export_operators,
     atex_operators,
     collection_operators
 )
@@ -57,7 +56,6 @@ def register():
     node_operators.register()
     physics_operators.register()
     frame_operators.register()
-    export_operators.register()
     atex_operators.register()
     collection_operators.register()
     
@@ -83,7 +81,6 @@ def unregister():
     panels.unregister()
     
     # 注销操作符
-    export_operators.unregister()
     frame_operators.unregister()
     physics_operators.unregister()
     node_operators.unregister()

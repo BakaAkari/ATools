@@ -2,7 +2,7 @@ from bpy.props import (BoolProperty, EnumProperty, FloatProperty, FloatVectorPro
                        StringProperty)
 from bpy.types import PropertyGroup
 from bpy.utils import register_class, unregister_class
-from ..config.constants import PhysicsSettings, ExportSettings, PathConstants
+from ..config.constants import PhysicsSettings, PathConstants
 
 
 class ATexProperties(PropertyGroup):
@@ -144,15 +144,6 @@ class ToolProperties(PropertyGroup):
                ]
     ) # type: ignore
     
-    export_rule: EnumProperty(
-        items=[
-            ('UNREAL', "Unreal", "Export as Unreal Engine rules"),
-            ('UNITY', "Unity", "Export as Unity Engine rules"),
-        ],
-        name="Export Rule",
-        description="Select an option",
-        default='UNREAL'
-    ) # type: ignore
     
     physics_friction: FloatProperty(
         description="Friction",
@@ -176,12 +167,6 @@ class ToolProperties(PropertyGroup):
         default=False
     ) # type: ignore
     
-    exportpath: StringProperty(
-        name='Export Path',
-        description='',
-        default='',
-        subtype=PathConstants.DEFAULT_EXPORT_SUBTYPE  # 指定为目录路径
-    ) # type: ignore
     
     movetexlocation: BoolProperty(
         description="",

@@ -1,7 +1,7 @@
 import os
 import bpy
 from bpy.utils import register_class, unregister_class
-from ..config.constants import PreferenceSettings, ExportSettings, MaterialNodes
+from ..config.constants import PreferenceSettings, MaterialNodes
 from ..utils.common_utils import ATOperationError, validate_object_selection, get_active_material_nodes
 import bmesh
 

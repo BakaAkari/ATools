@@ -14,15 +14,6 @@ class PhysicsSettings:
     DEFAULT_FPS = 24
     COLLISION_MARGIN = 0.0001
 
-# 导出设置常量
-class ExportSettings:
-    # Unreal Engine
-    UNREAL_AXIS_FORWARD = '-Z'
-    UNREAL_AXIS_UP = 'Y'
-    
-    # Unity
-    UNITY_AXIS_FORWARD = 'X'
-    UNITY_AXIS_UP = 'Y'
 
 # UI 常量
 class UIConstants:

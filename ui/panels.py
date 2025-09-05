@@ -53,15 +53,6 @@ class MainPanel(bpy.types.Panel):
             else:
                 physics_column.prop(wm.quick_physics, 'running_physics_calculation', text=get_text("Cancel Calculation", context), icon="X")
 
-        # 3. Export to engine 导出面板
-        header, export_panel = layout.panel("export_panel", default_closed=False)
-        header.label(text="Export to engine")
-        if export_panel:
-            export_box = export_panel.box()
-            export_column = export_box.column()
-            export_column.prop(props, 'export_rule', text=get_text("Export Rule", context))
-            export_column.prop(props, 'exportpath', text=get_text("Export Location", context))
-            export_column.operator('export.fbx_batch', text=get_text("Export Object", context))
 
 
 class NodePanel(bpy.types.Panel):
