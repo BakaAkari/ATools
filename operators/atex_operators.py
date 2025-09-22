@@ -146,6 +146,8 @@ class ATexMergeTexturesOperator(bpy.types.Operator):
                 self.report({'ERROR'}, "无法获取基础文件名")
                 return {'CANCELLED'}
             
+            
+            
             # 准备ATex.exe的CLI参数
             cmd_args = [atex_exe_path, 'orm']
             
@@ -205,6 +207,41 @@ class ATexMergeTexturesOperator(bpy.types.Operator):
                     self.report({'ERROR'}, f"ATex执行失败: {error_msg}")
                     return {'CANCELLED'}
                 
+                # 如果启用了翻转法线功能，对输出路径中的Nor贴图进行翻转
+                if atex_props.flip_normal:
+                    try:
+                        # 构建输出路径中的Nor贴图文件路径
+                        nor_output_path = os.path.join(output_dir, f"T_{asset_name}_Nor.png")
+                        
+                        if os.path.exists(nor_output_path):
+                            # 构建翻转法线的命令
+                            flip_cmd = [atex_exe_path, 'flip', '--input', nor_output_path, '--overwrite']
+                            
+                            self.report({'INFO'}, f"正在翻转输出路径中的法线贴图...")
+                            self.report({'INFO'}, f"命令: {' '.join(flip_cmd)}")
+                            
+                            flip_result = subprocess.run(flip_cmd, capture_output=True, text=True, encoding='utf-8')
+                            
+                            if flip_result.returncode == 0:
+                                try:
+                                    flip_data = json.loads(flip_result.stdout)
+                                    if flip_data.get('status') == 'success':
+                                        self.report({'INFO'}, f"法线翻转成功: {flip_data.get('message', '')}")
+                                    else:
+                                        self.report({'WARNING'}, f"法线翻转失败: {flip_data.get('message', '')}")
+                                except json.JSONDecodeError:
+                                    if flip_result.stdout.strip():
+                                        self.report({'INFO'}, f"法线翻转输出: {flip_result.stdout.strip()}")
+                                    else:
+                                        self.report({'INFO'}, "法线翻转成功")
+                            else:
+                                error_msg = flip_result.stderr.strip() or flip_result.stdout.strip() or "未知错误"
+                                self.report({'WARNING'}, f"法线翻转失败: {error_msg}")
+                        else:
+                            self.report({'WARNING'}, f"输出路径中未找到Nor贴图文件: {nor_output_path}")
+                    except subprocess.SubprocessError as e:
+                        self.report({'WARNING'}, f"执行法线翻转时出错: {str(e)}")
+                
                 # 打开输出目录
                 try:
                     if os.path.exists(output_dir):
@@ -232,6 +269,172 @@ class ATexMergeTexturesOperator(bpy.types.Operator):
             return {'CANCELLED'}
 
 
+class ATexCheckFileConflictsOperator(bpy.types.Operator):
+    """检查ATex文件冲突"""
+    bl_idname = "atex.check_file_conflicts"
+    bl_label = "检查文件冲突"
+    bl_options = {'INTERNAL'}
+    
+    def execute(self, context):
+        # 触发UI更新
+        for area in context.screen.areas:
+            if area.type == 'NODE_EDITOR':
+                area.tag_redraw()
+        return {'FINISHED'}
+
+
+class ATexResizeTexturesOperator(bpy.types.Operator):
+    """缩放贴图操作符"""
+    bl_idname = "atex.resize_textures"
+    bl_label = "导出缩放贴图"
+
+    def execute(self, context):
+        try:
+            wm = context.window_manager
+            atex_props = wm.atex_props
+            
+            # 检查是否启用ATex功能
+            if not atex_props.enable_atex:
+                self.report({'ERROR'}, "请在偏好设置中启用ATex功能")
+                return {'CANCELLED'}
+            
+            # 检查ATex.exe路径
+            if not atex_props.atex_exe_path:
+                self.report({'ERROR'}, "请在偏好设置中设置ATex.exe路径")
+                return {'CANCELLED'}
+            
+            # 验证ATex.exe文件是否存在
+            atex_exe_path = bpy.path.abspath(atex_props.atex_exe_path)
+            if not os.path.exists(atex_exe_path):
+                self.report({'ERROR'}, f"ATex.exe文件不存在: {atex_exe_path}")
+                return {'CANCELLED'}
+            
+            # 检查缩放输出路径
+            if not atex_props.resize_output_path:
+                self.report({'ERROR'}, "请先设置缩放输出路径")
+                return {'CANCELLED'}
+            
+            # 检查是否启用了缩放功能
+            if not atex_props.enable_resize:
+                self.report({'ERROR'}, "请先启用缩放功能")
+                return {'CANCELLED'}
+            
+            # 检查资产名
+            asset_name = atex_props.asset_name.strip()
+            if not asset_name:
+                self.report({'ERROR'}, "请先输入资产名")
+                return {'CANCELLED'}
+            
+            # 检查合并贴图输出路径
+            if not atex_props.output_path:
+                self.report({'ERROR'}, "请先设置合并贴图输出路径")
+                return {'CANCELLED'}
+            
+            # 检查合并贴图输出路径中是否存在该资产名的贴图
+            merge_output_dir = bpy.path.abspath(atex_props.output_path)
+            if not os.path.exists(merge_output_dir):
+                self.report({'ERROR'}, f"合并贴图输出路径不存在: {merge_output_dir}")
+                return {'CANCELLED'}
+            
+            # 查找合并后的贴图文件
+            texture_types = ['Col', 'ORM', 'Nor', 'OED']
+            texture_paths = {}
+            found_textures = []
+            
+            for texture_type in texture_types:
+                texture_filename = f"T_{asset_name}_{texture_type}.png"
+                texture_path = os.path.join(merge_output_dir, texture_filename)
+                if os.path.exists(texture_path):
+                    texture_paths[texture_type.lower()] = texture_path
+                    found_textures.append(texture_type)
+            
+            # 检查是否找到了任何合并后的贴图
+            if not texture_paths:
+                self.report({'ERROR'}, f"在合并贴图输出路径中未找到资产名为 '{asset_name}' 的贴图文件")
+                self.report({'ERROR'}, f"请先执行导出合并贴图功能，或检查资产名和输出路径是否正确")
+                return {'CANCELLED'}
+            
+            self.report({'INFO'}, f"找到合并后的贴图: {', '.join(found_textures)}")
+            
+            # 创建输出目录
+            output_dir = bpy.path.abspath(atex_props.resize_output_path)
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # 对所有贴图进行缩放
+            self.report({'INFO'}, f"正在缩放贴图到 {atex_props.resize_width}x{atex_props.resize_height}...")
+            
+            success_count = 0
+            for texture_type, texture_path in texture_paths.items():
+                try:
+                    # 构建输出文件名（使用资产名）
+                    output_filename = f"T_{asset_name}_{texture_type.upper()}.png"
+                    output_path = os.path.join(output_dir, output_filename)
+                    
+                    # 构建缩放命令
+                    resize_cmd = [
+                        atex_exe_path, 'resize',
+                        '--input', texture_path,
+                        '--width', str(atex_props.resize_width),
+                        '--height', str(atex_props.resize_height),
+                        '--output', output_path
+                    ]
+                    
+                    if atex_props.keep_aspect_ratio:
+                        resize_cmd.append('--keep-aspect')
+                    
+                    self.report({'INFO'}, f"缩放 {texture_type} 贴图: {os.path.basename(texture_path)}")
+                    
+                    resize_result = subprocess.run(resize_cmd, capture_output=True, text=True, encoding='utf-8')
+                    
+                    if resize_result.returncode == 0:
+                        try:
+                            resize_data = json.loads(resize_result.stdout)
+                            if resize_data.get('status') == 'success':
+                                self.report({'INFO'}, f"{texture_type} 贴图缩放成功")
+                                success_count += 1
+                            else:
+                                self.report({'WARNING'}, f"{texture_type} 贴图缩放失败: {resize_data.get('message', '')}")
+                        except json.JSONDecodeError:
+                            if resize_result.stdout.strip():
+                                self.report({'INFO'}, f"{texture_type} 贴图缩放输出: {resize_result.stdout.strip()}")
+                            else:
+                                self.report({'INFO'}, f"{texture_type} 贴图缩放成功")
+                                success_count += 1
+                    else:
+                        error_msg = resize_result.stderr.strip() or resize_result.stdout.strip() or "未知错误"
+                        self.report({'WARNING'}, f"{texture_type} 贴图缩放失败: {error_msg}")
+                except subprocess.SubprocessError as e:
+                    self.report({'WARNING'}, f"缩放 {texture_type} 贴图时出错: {str(e)}")
+            
+            if success_count > 0:
+                self.report({'INFO'}, f"成功缩放 {success_count} 个贴图到: {output_dir}")
+                
+                # 打开输出目录
+                try:
+                    if os.path.exists(output_dir):
+                        if os.name == 'nt':  # Windows
+                            os.startfile(output_dir)
+                        elif os.name == 'posix':  # macOS/Linux
+                            subprocess.run(['open', output_dir] if os.uname().sysname == 'Darwin' else ['xdg-open', output_dir])
+                        self.report({'INFO'}, f"已打开输出目录: {output_dir}")
+                    else:
+                        self.report({'WARNING'}, f"输出目录不存在: {output_dir}")
+                except Exception as e:
+                    self.report({'WARNING'}, f"无法打开输出目录: {str(e)}")
+            else:
+                self.report({'ERROR'}, "没有成功缩放任何贴图")
+                return {'CANCELLED'}
+            
+            return {'FINISHED'}
+            
+        except ATOperationError as e:
+            self.report({'ERROR'}, str(e))
+            return {'CANCELLED'}
+        except Exception as e:
+            self.report({'ERROR'}, f"缩放贴图失败: {str(e)}")
+            return {'CANCELLED'}
+
+
 class ATexCreateMaterialOperator(bpy.types.Operator):
     """根据资产名和贴图自动创建UE材质"""
     bl_idname = "atex.create_material"
@@ -241,14 +444,28 @@ class ATexCreateMaterialOperator(bpy.types.Operator):
         import_node_name = "UE Shader"
         wm = context.window_manager
         atex_props = wm.atex_props
-        output_dir = bpy.path.abspath(atex_props.output_path)
         asset_name = atex_props.asset_name.strip()
-        if not output_dir or not os.path.isdir(output_dir):
-            self.report({'ERROR'}, "请先设置有效的输出路径")
-            return {'CANCELLED'}
+        
         if not asset_name:
             self.report({'ERROR'}, "请先输入资产名")
             return {'CANCELLED'}
+        
+        # 根据是否启用缩放选择贴图路径
+        if atex_props.enable_resize and atex_props.resize_output_path:
+            # 使用缩放输出路径
+            output_dir = bpy.path.abspath(atex_props.resize_output_path)
+            if not output_dir or not os.path.isdir(output_dir):
+                self.report({'ERROR'}, "请先设置有效的缩放输出路径")
+                return {'CANCELLED'}
+            self.report({'INFO'}, f"使用缩放后的贴图创建材质: {output_dir}")
+        else:
+            # 使用默认合并贴图输出路径
+            output_dir = bpy.path.abspath(atex_props.output_path)
+            if not output_dir or not os.path.isdir(output_dir):
+                self.report({'ERROR'}, "请先设置有效的合并贴图输出路径")
+                return {'CANCELLED'}
+            self.report({'INFO'}, f"使用合并后的贴图创建材质: {output_dir}")
+        
         # 检查贴图文件是否存在
         found = False
         for suffix in ["Col", "ORM", "Nor", "OED"]:
@@ -257,7 +474,12 @@ class ATexCreateMaterialOperator(bpy.types.Operator):
                 found = True
                 break
         if not found:
-            self.report({'ERROR'}, f"输出路径下未找到以T_{asset_name}_开头的贴图文件")
+            if atex_props.enable_resize and atex_props.resize_output_path:
+                self.report({'ERROR'}, f"缩放输出路径下未找到以T_{asset_name}_开头的贴图文件")
+                self.report({'ERROR'}, "请先执行导出缩放贴图功能")
+            else:
+                self.report({'ERROR'}, f"合并贴图输出路径下未找到以T_{asset_name}_开头的贴图文件")
+                self.report({'ERROR'}, "请先执行导出合并贴图功能")
             return {'CANCELLED'}
         # 创建新材质
         mat_name = f"MI_{asset_name}"
@@ -436,6 +658,8 @@ class ATexCreateMaterialOperator(bpy.types.Operator):
 classes = (
     ATexPickNodeOperator,
     ATexMergeTexturesOperator,
+    ATexCheckFileConflictsOperator,
+    ATexResizeTexturesOperator,
     ATexCreateMaterialOperator,
 )
 

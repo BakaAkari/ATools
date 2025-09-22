@@ -5,6 +5,15 @@ from bpy.utils import register_class, unregister_class
 from ..config.constants import PhysicsSettings, PathConstants
 
 
+def update_atex_status(self, context):
+    """当资产名或输出路径改变时更新状态"""
+    # 触发UI更新
+    try:
+        bpy.ops.atex.check_file_conflicts()
+    except:
+        pass  # 如果操作符未注册，忽略错误
+
+
 class ATexProperties(PropertyGroup):
     """ATex工具属性组"""
     
@@ -12,14 +21,14 @@ class ATexProperties(PropertyGroup):
     enable_atex: BoolProperty(
         name="启用ATex图像处理功能",
         description="启用ATex图像处理功能",
-        default=False
+        default=True
     ) # type: ignore
     
     # ATex.exe路径
     atex_exe_path: StringProperty(
         name="ATex.exe路径",
         description="选择ATex.exe文件路径",
-        default="D:/Nextcloud/Code/Python/Baka Akari Tools Bag/ATex/dist/ATex.exe",
+        default="D:/NextCloud/Code/Python/Baka Akari Tools Bag/ATex/dist/ATexTool.exe",
         subtype='FILE_PATH'
     ) # type: ignore
     
@@ -76,7 +85,8 @@ class ATexProperties(PropertyGroup):
     asset_name: StringProperty(
         name="资产名",
         description="输出文件的资产名（如：MyRock）",
-        default=""
+        default="",
+        update=update_atex_status
     ) # type: ignore
 
     # 输出路径
@@ -84,7 +94,8 @@ class ATexProperties(PropertyGroup):
         name="输出路径",
         description="选择合并贴图的输出路径",
         default="",
-        subtype='DIR_PATH'
+        subtype='DIR_PATH',
+        update=update_atex_status
     ) # type: ignore
     
     # 命名规则
@@ -92,6 +103,49 @@ class ATexProperties(PropertyGroup):
         name="命名规则",
         description="输出文件的命名规则，使用{basename}和{type}作为占位符",
         default="T_{basename}_{type}.png"
+    ) # type: ignore
+    
+    # 翻转法线选项
+    flip_normal: BoolProperty(
+        name="翻转法线",
+        description="在导出合并贴图时翻转Normal贴图",
+        default=False
+    ) # type: ignore
+    
+    # 图像缩放选项
+    enable_resize: BoolProperty(
+        name="启用缩放",
+        description="在导出合并贴图时缩放所有贴图",
+        default=False
+    ) # type: ignore
+    
+    resize_width: IntProperty(
+        name="宽度",
+        description="目标宽度（像素）",
+        default=512,
+        min=1,
+        max=10000
+    ) # type: ignore
+    
+    resize_height: IntProperty(
+        name="高度",
+        description="目标高度（像素）",
+        default=512,
+        min=1,
+        max=10000
+    ) # type: ignore
+    
+    keep_aspect_ratio: BoolProperty(
+        name="保持宽高比",
+        description="缩放时保持原始宽高比",
+        default=True
+    ) # type: ignore
+    
+    resize_output_path: StringProperty(
+        name="缩放输出路径",
+        description="选择缩放后贴图的输出路径",
+        default="",
+        subtype='DIR_PATH'
     ) # type: ignore
 
 
