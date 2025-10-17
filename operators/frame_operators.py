@@ -99,14 +99,24 @@ class LanguageToggleOperator(bpy.types.Operator):
     def execute(self, context):
         viewlanguage = context.preferences.view.language
         prefview = context.preferences.view
+        
+        # 确定当前语言和目标语言
         if viewlanguage != "en_US":
+            current_lang = "中文"
+            target_lang = "English"
             context.preferences.view.language = "en_US"
         else:
+            current_lang = "English"
+            target_lang = "中文"
             try:
                 context.preferences.view.language = "zh_CN"
             except:
                 context.preferences.view.language = "zh_HANS"
             prefview.use_translate_new_dataname = False
+        
+        # 输出日志信息
+        print(f"ATools语言切换: {current_lang} → {target_lang}")
+        
         return {'FINISHED'}
 
 
