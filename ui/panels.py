@@ -59,7 +59,7 @@ class MainPanel(bpy.types.Panel):
             row2.operator('mesh.resize_to_texture', text=get_text("Resize Mesh", context))
 
         # 2. Physics 物理面板
-        header, physics_panel = layout.panel("physics_panel", default_closed=False)
+        header, physics_panel = layout.panel("physics_panel", default_closed=True)
         header.label(text="Physics")
         if physics_panel:
             physics_box = physics_panel.box()
@@ -72,7 +72,7 @@ class MainPanel(bpy.types.Panel):
                 physics_column.prop(wm.atprops, 'running_physics_calculation', text=get_text("Cancel Calculation", context), icon="X")
 
         # 3. Explode 爆炸图面板
-        header, explode_panel = layout.panel("explode_panel", default_closed=False)
+        header, explode_panel = layout.panel("explode_panel", default_closed=True)
         header.label(text=get_text("Explode View", context))
         if explode_panel:
             explode_box = explode_panel.box()
