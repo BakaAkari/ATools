@@ -36,7 +36,7 @@ bl_info = {
     "name": "ATools",
     "description": "Baka_Akari's fixed Quixel Bridge Link plugin suite",
     "author": "Baka_Akari",
-    "version": (0, 0, 9),
+    "version": (0, 1, 1),
     "blender": (2, 8, 0),
     "location": "View3D",
     "warning": "Multiple functions are in beta.",

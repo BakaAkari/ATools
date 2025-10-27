@@ -18,9 +18,9 @@ class PhysicsSettings:
 # UI 常量
 class UIConstants:
     PANEL_CATEGORY = "ATB"
-    PANEL_ORDER_MAIN = 10
-    PANEL_ORDER_PHYSICS = 11
-    PANEL_ORDER_NODE = 15
+    PANEL_ORDER_MAIN = 1
+    PANEL_ORDER_PHYSICS = 2
+    PANEL_ORDER_NODE = 3
 
 # 文件路径常量
 class PathConstants:
