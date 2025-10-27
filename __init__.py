@@ -48,58 +48,69 @@ bl_info = {
 
 def register():
     """注册所有模块"""
-    # 注册属性组
+    # 1. 先注册属性组
     property_groups.register()
     
-    # 注册操作符
+    # 2. 添加嵌套属性（在类上添加，注册后立即添加）
+    AToolsToolProperties = property_groups.AToolsToolProperties
+    AToolsToolProperties.atex_props = PointerProperty(type=property_groups.ATexProperties)
+    AToolsToolProperties.explode_props = PointerProperty(type=property_groups.ExplodeProperties)
+    
+    # 3. 注册WindowManager的属性
+    bpy.types.WindowManager.atprops = PointerProperty(type=property_groups.AToolsToolProperties)
+    
+    # 4. 注册操作符（必须先注册，UI才能引用）
     mesh_operators.register()
     node_operators.register()
     physics_operators.register()
-    frame_operators.register()
+    frame_operators.register()  # 包含 LanguageToggleOperator
     atex_operators.register()
     collection_operators.register()
     
-    # 注册UI
+    # 5. 注册UI
     panels.register()
     preferences.register()
     
-    # 注册属性到WindowManager
-    bpy.types.WindowManager.atprops = PointerProperty(type=property_groups.ToolProperties)
-    bpy.types.WindowManager.quick_physics = PointerProperty(type=property_groups.ToolProperties)
-    bpy.types.WindowManager.atex_props = PointerProperty(type=property_groups.ATexProperties)
-    
-    # 添加UI回调函数
-    bpy.types.STATUSBAR_HT_header.append(ui_functions.translation_ui_function)
-    bpy.types.DOPESHEET_HT_header.append(ui_functions.frame_ui_function)
-    bpy.types.NODE_HT_header.append(ui_functions.reload_image_ui_function)
+    # 6. 添加UI回调函数（最后添加，确保所有依赖都已注册）
+    try:
+        bpy.types.STATUSBAR_HT_header.append(ui_functions.translation_ui_function)
+        bpy.types.DOPESHEET_HT_header.append(ui_functions.frame_ui_function)
+        bpy.types.NODE_HT_header.append(ui_functions.reload_image_ui_function)
+        print("ATools: UI callbacks registered successfully")
+    except Exception as e:
+        print(f"ATools: Error registering UI callbacks: {e}")
 
 
 def unregister():
     """注销所有模块"""
+    # 移除UI回调函数
+    try:
+        bpy.types.STATUSBAR_HT_header.remove(ui_functions.translation_ui_function)
+        bpy.types.DOPESHEET_HT_header.remove(ui_functions.frame_ui_function)
+        bpy.types.NODE_HT_header.remove(ui_functions.reload_image_ui_function)
+    except Exception as e:
+        print(f"ATools: Error removing UI callbacks: {e}")
+    
     # 注销UI
     preferences.unregister()
     panels.unregister()
     
     # 注销操作符
-    frame_operators.unregister()
-    physics_operators.unregister()
-    node_operators.unregister()
     mesh_operators.unregister()
+    node_operators.unregister()
+    physics_operators.unregister()
+    frame_operators.unregister()
     atex_operators.unregister()
     collection_operators.unregister()
     
-    # 注销属性组
+    # 移除WindowManager属性
+    try:
+        del bpy.types.WindowManager.atprops
+    except:
+        pass
+    
+    # 注销属性组（会自动清理所有关联的属性）
     property_groups.unregister()
-    
-    # 移除属性
-    del bpy.types.WindowManager.atprops
-    del bpy.types.WindowManager.quick_physics
-    del bpy.types.WindowManager.atex_props
-    
-    # 移除UI回调函数
-    bpy.types.STATUSBAR_HT_header.remove(ui_functions.translation_ui_function)
-    bpy.types.DOPESHEET_HT_header.remove(ui_functions.frame_ui_function)
-    bpy.types.NODE_HT_header.remove(ui_functions.reload_image_ui_function)
 
 
 if __name__ == "__main__":

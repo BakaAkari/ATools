@@ -34,7 +34,7 @@ class ATexPickNodeOperator(bpy.types.Operator):
             
             # 更新对应的属性
             wm = context.window_manager
-            atex_props = wm.atex_props
+            atex_props = wm.atprops.atex_props
             setattr(atex_props, self.node_property, active_node.name)
             
             # 显示贴图名称
@@ -55,7 +55,7 @@ class ATexMergeTexturesOperator(bpy.types.Operator):
     def execute(self, context):
         try:
             wm = context.window_manager
-            atex_props = wm.atex_props
+            atex_props = wm.atprops.atex_props
             
             # 检查是否启用ATex功能
             if not atex_props.enable_atex:
@@ -291,7 +291,7 @@ class ATexResizeTexturesOperator(bpy.types.Operator):
     def execute(self, context):
         try:
             wm = context.window_manager
-            atex_props = wm.atex_props
+            atex_props = wm.atprops.atex_props
             
             # 检查是否启用ATex功能
             if not atex_props.enable_atex:
@@ -443,7 +443,7 @@ class ATexCreateMaterialOperator(bpy.types.Operator):
     def execute(self, context):
         import_node_name = "UE Shader"
         wm = context.window_manager
-        atex_props = wm.atex_props
+        atex_props = wm.atprops.atex_props
         asset_name = atex_props.asset_name.strip()
         
         if not asset_name:

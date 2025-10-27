@@ -64,12 +64,39 @@ class MainPanel(bpy.types.Panel):
         if physics_panel:
             physics_box = physics_panel.box()
             physics_column = physics_box.column()
-            physics_column.prop(wm.quick_physics, 'physics_friction', text=get_text("Friction", context), slider=True)
-            physics_column.prop(wm.quick_physics, 'physics_time_scale', text=get_text("Time Scale", context))
-            if not wm.quick_physics.running_physics_calculation:
+            physics_column.prop(wm.atprops, 'physics_friction', text=get_text("Friction", context), slider=True)
+            physics_column.prop(wm.atprops, 'physics_time_scale', text=get_text("Time Scale", context))
+            if not wm.atprops.running_physics_calculation:
                 physics_column.operator('physics.calculate', text=get_text("开始模拟", context))
             else:
-                physics_column.prop(wm.quick_physics, 'running_physics_calculation', text=get_text("Cancel Calculation", context), icon="X")
+                physics_column.prop(wm.atprops, 'running_physics_calculation', text=get_text("Cancel Calculation", context), icon="X")
+
+        # 3. Explode 爆炸图面板
+        header, explode_panel = layout.panel("explode_panel", default_closed=False)
+        header.label(text=get_text("Explode View", context))
+        if explode_panel:
+            explode_box = explode_panel.box()
+            explode_column = explode_box.column()
+            
+            # 获取爆炸图属性
+            explode_props = wm.atprops.explode_props
+            
+            # 集合选择下拉菜单
+            explode_column.prop(explode_props, 'target_collection', text=get_text("Target Collection", context))
+            
+            # 记录初始位置和重置按钮
+            button_row = explode_column.row()
+            button_row.operator('explode.record_initial_positions', text=get_text("Record Initial Positions", context), icon='REC')
+            button_row.operator('explode.reset_positions', text=get_text("Reset Positions", context), icon='LOOP_BACK')
+            
+            # 显示是否已记录初始位置
+            if explode_props.has_initial_positions:
+                explode_column.label(text=get_text("✓ Recorded Initial Positions", context), icon='CHECKMARK')
+            else:
+                explode_column.label(text=get_text("⚠ Please Record Initial Positions", context), icon='ERROR')
+            
+            # 偏移值滑条（实时更新）
+            explode_column.prop(explode_props, 'explode_offset', text=get_text("Offset Value", context), slider=True)
 
 
 
@@ -109,7 +136,7 @@ class NodePanel(bpy.types.Panel):
             
             # 获取ATex属性
             wm = context.window_manager
-            atex_props = wm.atex_props
+            atex_props = wm.atprops.atex_props
             
             # 检查是否启用ATex功能
             if not atex_props.enable_atex:

@@ -66,7 +66,43 @@ class TranslationManager:
             "Tiling Scale": {"en_US": "Tiling Scale", "zh": "平铺缩放"},
             "Bump Strength": {"en_US": "Bump Strength", "zh": "凹凸强度"},
             
+            # 爆炸图相关
+            "Explode View": {"en_US": "Explode View", "zh": "拆件爆炸图"},
+            "Target Collection": {"en_US": "Target Collection", "zh": "目标集合"},
+            "Record Initial Positions": {"en_US": "Record Initial Positions", "zh": "记录初始位置"},
+            "Reset Positions": {"en_US": "Reset Positions", "zh": "重置位置"},
+            "✓ Recorded Initial Positions": {"en_US": "✓ Recorded Initial Positions", "zh": "✓ 已记录初始位置"},
+            "⚠ Please Record Initial Positions": {"en_US": "⚠ Please Record Initial Positions", "zh": "⚠ 请先记录初始位置"},
+            "Offset Value": {"en_US": "Offset Value", "zh": "偏移值"},
+            "Recorded {0} objects' initial positions": {"en_US": "Recorded {0} objects' initial positions", "zh": "已记录 {0} 个对象的初始位置"},
+            "Failed to record initial positions: please select target collection first": {"en_US": "Failed to record initial positions: please select target collection first", "zh": "记录初始位置失败：请先选择目标集合"},
+            "Reset all objects to initial positions": {"en_US": "Reset all objects to initial positions", "zh": "已重置所有对象到初始位置"},
+            
             # 错误和警告信息
+            "ATex设置": {"en_US": "ATex Settings", "zh": "ATex设置"},
+            "启用ATex图像处理功能": {"en_US": "Enable ATex Image Processing", "zh": "启用ATex图像处理功能"},
+            "ATex.exe路径": {"en_US": "ATex.exe Path", "zh": "ATex.exe路径"},
+            "输出路径": {"en_US": "Output Path", "zh": "输出路径"},
+            "资产名": {"en_US": "Asset Name", "zh": "资产名"},
+            "请先执行导出合并贴图功能": {"en_US": "Please run merge textures export first", "zh": "请先执行导出合并贴图功能"},
+            "请先执行导出缩放贴图功能": {"en_US": "Please run resize textures export first", "zh": "请先执行导出缩放贴图功能"},
+            "请先设置输出路径": {"en_US": "Please set output path first", "zh": "请先设置输出路径"},
+            "请先输入资产名": {"en_US": "Please enter asset name", "zh": "请先输入资产名"},
+            "正在执行ATex合并操作...": {"en_US": "Executing ATex merge operation...", "zh": "正在执行ATex合并操作..."},
+            "正在翻转输出路径中的法线贴图...": {"en_US": "Flipping normal map in output path...", "zh": "正在翻转输出路径中的法线贴图..."},
+            "翻转法线": {"en_US": "Flip Normal", "zh": "翻转法线"},
+            "导出合并贴图": {"en_US": "Export Merged Textures", "zh": "导出合并贴图"},
+            "启用缩放": {"en_US": "Enable Resize", "zh": "启用缩放"},
+            "需要先执行导出合并贴图": {"en_US": "Need to run merge textures export first", "zh": "需要先执行导出合并贴图"},
+            "宽度": {"en_US": "Width", "zh": "宽度"},
+            "高度": {"en_US": "Height", "zh": "高度"},
+            "保持宽高比": {"en_US": "Keep Aspect Ratio", "zh": "保持宽高比"},
+            "缩放输出路径": {"en_US": "Resize Output Path", "zh": "缩放输出路径"},
+            "导出缩放贴图": {"en_US": "Export Resized Textures", "zh": "导出缩放贴图"},
+            "创建材质": {"en_US": "Create Material", "zh": "创建材质"},
+            "将使用缩放后的贴图创建材质": {"en_US": "Will use resized textures to create material", "zh": "将使用缩放后的贴图创建材质"},
+            "将使用合并后的贴图创建材质": {"en_US": "Will use merged textures to create material", "zh": "将使用合并后的贴图创建材质"},
+            "请在偏好设置中启用ATex功能": {"en_US": "Please enable ATex in preferences", "zh": "请在偏好设置中启用ATex功能"},
         }
     
     def get_text(self, key: str, context: Optional[bpy.types.Context] = None) -> str:

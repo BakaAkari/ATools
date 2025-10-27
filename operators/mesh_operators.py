@@ -1,9 +1,10 @@
 import os
 import bpy
+import bmesh
+import mathutils
 from bpy.utils import register_class, unregister_class
 from ..config.constants import PreferenceSettings, MaterialNodes
 from ..utils.common_utils import ATOperationError, validate_object_selection, get_active_material_nodes
-import bmesh
 
 
 class MeshResizeOperator(bpy.types.Operator):
@@ -90,6 +91,13 @@ class MeshRenameOperator(bpy.types.Operator):
     """基于集合名称重命名网格对象"""
     bl_idname = "mesh.rename_by_collection"
     bl_label = "Rename"
+    
+    def _get_all_collections(self, collection):
+        """递归获取所有嵌套集合"""
+        collections = [collection]
+        for child in collection.children:
+            collections.extend(self._get_all_collections(child))
+        return collections
 
     def execute(self, context):
         try:
@@ -105,30 +113,60 @@ class MeshRenameOperator(bpy.types.Operator):
             
             # 获取对象所在的集合
             collection = act_obj.users_collection[0]
-            collection_name = collection.name
             
-            # 获取集合中的所有网格对象
-            mesh_objects = [obj for obj in collection.all_objects if obj.type == 'MESH']
+            # 定义需要处理的对象类型（只处理这几种类型）
+            target_types = {'MESH', 'CAMERA', 'LIGHT', 'EMPTY', 'CURVE'}
             
-            if not mesh_objects:
-                self.report({'WARNING'}, f"集合 '{collection_name}' 中没有网格对象")
-                return {'FINISHED'}
+            # 定义对象类型前缀映射
+            type_prefixes = {
+                'MESH': '',      # 网格对象不加前缀
+                'CAMERA': 'C_',
+                'LIGHT': 'L_',
+                'EMPTY': 'E_',
+                'CURVE': 'CR_',
+            }
+            
+            # 收集所有需要处理的集合
+            collections_to_process = self._get_all_collections(collection)
             
             renamed_count = 0
             failed_renames = []
-            mesh_count = len(mesh_objects)
             
-            # 重命名网格对象
-            for i, obj in enumerate(mesh_objects):
-                try:
-                    self._rename_object_and_mesh(obj, collection_name, i + 1, mesh_count)
-                    renamed_count += 1
-                except Exception as e:
-                    failed_renames.append(f"{obj.name}: {str(e)}")
+            # 处理每个集合
+            for coll in collections_to_process:
+                # 获取该集合的直接对象（不包括嵌套集合中的对象）
+                direct_objects = [obj for obj in coll.objects if obj.type in target_types]
+                
+                if not direct_objects:
+                    continue
+                
+                # 按类型分组该集合中的对象
+                objects_by_type = {}
+                for obj in direct_objects:
+                    obj_type = obj.type
+                    if obj_type not in objects_by_type:
+                        objects_by_type[obj_type] = []
+                    objects_by_type[obj_type].append(obj)
+                
+                # 按类型处理对象
+                for obj_type, objects in objects_by_type.items():
+                    prefix = type_prefixes.get(obj_type, '')
+                    type_count = len(objects)
+                    
+                    for i, obj in enumerate(objects):
+                        try:
+                            collection_name = coll.name
+                            self._rename_object_and_mesh(obj, collection_name, prefix, i + 1, type_count)
+                            renamed_count += 1
+                        except Exception as e:
+                            failed_renames.append(f"{obj.name}: {str(e)}")
+            
+            if renamed_count == 0:
+                self.report({'WARNING'}, "没有需要重命名的对象")
             
             # 报告结果
             if renamed_count > 0:
-                self.report({'INFO'}, f"成功重命名 {renamed_count} 个对象 (基于集合: {collection_name})")
+                self.report({'INFO'}, f"成功重命名 {renamed_count} 个对象")
             
             if failed_renames:
                 error_msg = "重命名失败的对象:\n" + "\n".join(failed_renames[:3])
@@ -142,27 +180,28 @@ class MeshRenameOperator(bpy.types.Operator):
             self.report({'ERROR'}, f"重命名操作失败: {str(e)}")
             return {'CANCELLED'}
     
-    def _rename_object_and_mesh(self, obj, collection_name, index, total_count):
+    def _rename_object_and_mesh(self, obj, collection_name, prefix, index, total_count):
         """重命名对象和其网格数据"""
         # 根据对象数量决定是否添加后缀
         if total_count == 1:
-            # 只有一个对象时，直接使用集合名称
-            new_name = collection_name
+            # 只有一个对象时，直接使用前缀+集合名称
+            new_name = f"{prefix}{collection_name}"
         else:
             # 多个对象时，添加序号后缀
-            new_name = f"{collection_name}_{str(index).zfill(2)}"
+            new_name = f"{prefix}{collection_name}_{str(index).zfill(2)}"
         
         # 重命名对象
         old_obj_name = obj.name
         obj.name = new_name
         
-        # 重命名网格数据
+        # 重命名网格数据（仅对网格对象）
         if obj.data:
             obj.data.name = new_name
             print(f"重命名: {old_obj_name} -> {new_name}")
         
-        # 处理UV通道
-        self._process_uv_channels(obj)
+        # 处理UV通道（仅对网格对象）
+        if obj.type == 'MESH':
+            self._process_uv_channels(obj)
     
     def _process_uv_channels(self, obj):
         """处理对象的UV通道，根据UV通道数量重命名为UVMap_01, UVMap_02等"""
@@ -281,11 +320,121 @@ class MeshResetOriginOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class CollectionEnumOperator(bpy.types.Operator):
+    """获取场景中所有集合的枚举操作器"""
+    bl_idname = "mesh.get_collection_enum"
+    bl_label = "获取集合列表"
+    bl_description = "获取场景中所有集合的列表"
+    bl_options = {'INTERNAL'}
+    
+    def execute(self, context):
+        # 这个操作器主要用于更新集合枚举
+        return {'FINISHED'}
+    
+    @classmethod
+    def get_collection_items(cls, context):
+        """获取场景中所有集合的枚举项"""
+        items = []
+        for collection in bpy.data.collections:
+            items.append((collection.name, collection.name, f"集合: {collection.name}"))
+        return items
+
+
+# 已废弃：全局缓存已移动到 property_groups.py
+# 保留此导入以便向后兼容
+from ..properties.property_groups import _initial_positions_cache
+
+
+class RecordInitialPositionsOperator(bpy.types.Operator):
+    """记录集合中所有对象的初始位置"""
+    bl_idname = "explode.record_initial_positions"
+    bl_label = "Record Initial Positions"
+    bl_description = "Record initial positions of all objects in the collection for explode view operation"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    def execute(self, context):
+        from ..i18n.translation import get_text
+        from ..properties.property_groups import _initial_positions_cache
+        
+        wm = context.window_manager
+        explode_props = wm.atprops.explode_props
+        
+        # 记录初始位置
+        initial_positions = explode_props.record_initial_positions()
+        
+        if initial_positions:
+            # 将初始位置保存到全局缓存
+            wm_id = context.window_manager.as_pointer()
+            _initial_positions_cache[wm_id] = initial_positions
+            count = len(initial_positions)
+            
+            # 构建消息
+            is_chinese = context.preferences.view.language not in ["en_US"]
+            if is_chinese:
+                msg = f"已记录 {count} 个对象的初始位置"
+            else:
+                msg = f"Recorded {count} objects' initial positions"
+            self.report({'INFO'}, msg)
+            return {'FINISHED'}
+        else:
+            self.report({'ERROR'}, get_text("Failed to record initial positions: please select target collection first", context))
+            return {'CANCELLED'}
+
+
+class ResetExplodePositionsOperator(bpy.types.Operator):
+    """重置爆炸图位置到初始状态"""
+    bl_idname = "explode.reset_positions"
+    bl_label = "Reset Positions"
+    bl_description = "Reset all objects to initial positions and clear offset value"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    def execute(self, context):
+        from ..i18n.translation import get_text
+        from ..properties.property_groups import _initial_positions_cache
+        
+        wm = context.window_manager
+        explode_props = wm.atprops.explode_props
+        
+        # 从全局缓存获取初始位置
+        wm_id = context.window_manager.as_pointer()
+        initial_positions = _initial_positions_cache.get(wm_id, {})
+        
+        # 如果没有选择集合，直接返回
+        if not explode_props.target_collection:
+            return {'CANCELLED'}
+        
+        # 获取目标集合
+        collection = bpy.data.collections.get(explode_props.target_collection)
+        if not collection:
+            return {'CANCELLED'}
+        
+        # 获取集合中的所有网格对象
+        mesh_objects = [obj for obj in collection.all_objects if obj.type == 'MESH']
+        
+        # 为每个对象重置位置（使用对象指针作为key）
+        for obj in mesh_objects:
+            obj_key = id(obj)
+            if obj_key in initial_positions:
+                initial_world_center = initial_positions[obj_key]
+                direction = initial_world_center.normalized() if initial_world_center.length > 0.001 else mathutils.Vector((1, 0, 0))
+                offset_vector = direction * initial_world_center.length
+                obj.location = offset_vector
+        
+        # 重置偏移值为0
+        explode_props.explode_offset = 0.0
+        
+        self.report({'INFO'}, get_text("Reset all objects to initial positions", context))
+        return {'FINISHED'}
+
+
 classes = (
     MeshResizeOperator,
     MeshRenameOperator,
     MeshCleanOperator,
     MeshResetOriginOperator,
+    CollectionEnumOperator,
+    RecordInitialPositionsOperator,
+    ResetExplodePositionsOperator,
 )
 
 

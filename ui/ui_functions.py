@@ -5,13 +5,20 @@ from ..operators.frame_operators import stop_playback, start_playback
 
 def translation_ui_function(self, context):
     """翻译切换UI函数"""
-    layout = self.layout
-    if context.preferences.view.language == "en_US":
-        buttonname = get_text("Switch CH", context)
-    else:
-        buttonname = get_text("切换英文", context)
+    try:
+        layout = self.layout
+        # 使用分隔符与主UI分开
+        layout.separator()
         
-    layout.operator(operator="ui.toggle_language", text=buttonname)
+        # 根据当前语言显示按钮文本
+        if context.preferences.view.language == "en_US":
+            buttonname = get_text("Switch CH", context)
+        else:
+            buttonname = get_text("切换英文", context)
+        
+        layout.operator(operator="ui.toggle_language", text=buttonname, icon='FONT_DATA')
+    except Exception as e:
+        print(f"ATools: Error in translation_ui_function: {e}")
 
 
 def reload_image_ui_function(self, context):

@@ -94,30 +94,45 @@ class FrameLoopOperator(bpy.types.Operator):
 class LanguageToggleOperator(bpy.types.Operator):
     """切换语言"""
     bl_idname = "ui.toggle_language"
-    bl_label = "切换中英文"
+    bl_label = "Toggle Language"
+    bl_description = "Toggle between Chinese and English"
 
     def execute(self, context):
-        viewlanguage = context.preferences.view.language
-        prefview = context.preferences.view
-        
-        # 确定当前语言和目标语言
-        if viewlanguage != "en_US":
-            current_lang = "中文"
-            target_lang = "English"
-            context.preferences.view.language = "en_US"
-        else:
-            current_lang = "English"
-            target_lang = "中文"
-            try:
-                context.preferences.view.language = "zh_CN"
-            except:
-                context.preferences.view.language = "zh_HANS"
-            prefview.use_translate_new_dataname = False
-        
-        # 输出日志信息
-        print(f"ATools语言切换: {current_lang} → {target_lang}")
-        
-        return {'FINISHED'}
+        try:
+            viewlanguage = context.preferences.view.language
+            prefview = context.preferences.view
+            
+            # 确定当前语言和目标语言
+            if viewlanguage == "en_US":
+                current_lang = "English"
+                target_lang = "中文"
+                # 尝试切换为简体中文，失败则使用繁体中文
+                try:
+                    context.preferences.view.language = "zh_CN"
+                except:
+                    try:
+                        context.preferences.view.language = "zh_HANS"
+                    except:
+                        context.preferences.view.language = "zh_TW"
+                prefview.use_translate_new_dataname = False
+            else:
+                current_lang = "中文"
+                target_lang = "English"
+                context.preferences.view.language = "en_US"
+            
+            # 输出日志信息
+            print(f"ATools语言切换: {current_lang} → {target_lang}")
+            self.report({'INFO'}, f"Language switched: {current_lang} → {target_lang}")
+            
+            # 刷新所有区域
+            for area in context.screen.areas:
+                area.tag_redraw()
+            
+            return {'FINISHED'}
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to switch language: {str(e)}")
+            print(f"ATools: Error in language toggle: {e}")
+            return {'CANCELLED'}
 
 
 classes = (

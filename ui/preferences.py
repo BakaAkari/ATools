@@ -12,8 +12,7 @@ class ToolAddonPreferences(AddonPreferences):
         layout = self.layout
         
         wm = context.window_manager
-        props = wm.atprops
-        atex_props = wm.atex_props
+        atex_props = wm.atprops.atex_props
         
         # ATex设置
         box = layout.box()
