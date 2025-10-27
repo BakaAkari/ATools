@@ -17,7 +17,6 @@ from .operators import (
     node_operators,
     physics_operators,
     frame_operators,
-    atex_operators,
     collection_operators
 )
 
@@ -53,7 +52,6 @@ def register():
     
     # 2. 添加嵌套属性（在类上添加，注册后立即添加）
     AToolsToolProperties = property_groups.AToolsToolProperties
-    AToolsToolProperties.atex_props = PointerProperty(type=property_groups.ATexProperties)
     AToolsToolProperties.explode_props = PointerProperty(type=property_groups.ExplodeProperties)
     
     # 3. 注册WindowManager的属性
@@ -64,7 +62,6 @@ def register():
     node_operators.register()
     physics_operators.register()
     frame_operators.register()  # 包含 LanguageToggleOperator
-    atex_operators.register()
     collection_operators.register()
     
     # 5. 注册UI
@@ -100,7 +97,6 @@ def unregister():
     node_operators.unregister()
     physics_operators.unregister()
     frame_operators.unregister()
-    atex_operators.unregister()
     collection_operators.unregister()
     
     # 移除WindowManager属性

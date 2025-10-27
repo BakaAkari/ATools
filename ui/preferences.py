@@ -10,20 +10,8 @@ class ToolAddonPreferences(AddonPreferences):
 
     def draw(self, context):
         layout = self.layout
-        
-        wm = context.window_manager
-        atex_props = wm.atprops.atex_props
-        
-        # ATex设置
-        box = layout.box()
-        box.label(text="ATex设置")
-        
-        # 启用ATex功能复选框
-        box.prop(atex_props, 'enable_atex', text="启用ATex图像处理功能")
-        
-        # 如果启用了ATex功能，显示路径选择
-        if atex_props.enable_atex:
-            box.prop(atex_props, 'atex_exe_path', text="ATex.exe路径")
+        # 偏好设置UI可以在这里添加
+        pass
 
 
 classes = (ToolAddonPreferences,)
