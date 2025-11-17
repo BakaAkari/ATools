@@ -415,10 +415,20 @@ class ResetExplodePositionsOperator(bpy.types.Operator):
         for obj in mesh_objects:
             obj_key = id(obj)
             if obj_key in initial_positions:
-                initial_world_center = initial_positions[obj_key]
-                direction = initial_world_center.normalized() if initial_world_center.length > 0.001 else mathutils.Vector((1, 0, 0))
-                offset_vector = direction * initial_world_center.length
-                obj.location = offset_vector
+                # 跳过距离范围标记
+                if obj_key in ['_min_distance', '_max_distance']:
+                    continue
+                    
+                initial_data = initial_positions[obj_key]
+                # 恢复对象的原始位置
+                if isinstance(initial_data, dict) and 'location' in initial_data:
+                    obj.location = initial_data['location']
+                else:
+                    # 兼容旧格式（如果存在）
+                    initial_world_center = initial_data if not isinstance(initial_data, dict) else initial_data.get('center', mathutils.Vector((0, 0, 0)))
+                    direction = initial_world_center.normalized() if initial_world_center.length > 0.001 else mathutils.Vector((1, 0, 0))
+                    offset_vector = direction * initial_world_center.length
+                    obj.location = offset_vector
         
         # 重置偏移值为0
         explode_props.explode_offset = 0.0

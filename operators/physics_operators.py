@@ -6,6 +6,23 @@ from ..config.constants import PhysicsSettings
 from ..utils.common_utils import ATOperationError, validate_object_selection
 
 
+def get_atprops(context):
+    """安全获取 atprops 属性"""
+    wm = context.window_manager
+    if not hasattr(wm, 'atprops'):
+        raise AttributeError(
+            "WindowManager 缺少 'atprops' 属性。"
+            "请确保插件已正确注册。"
+            "尝试重新加载插件。"
+        )
+    if wm.atprops is None:
+        raise AttributeError(
+            "WindowManager.atprops 为 None。"
+            "请确保插件已正确初始化。"
+        )
+    return wm.atprops
+
+
 class PhysicsCalculateOperator(bpy.types.Operator):
     """计算物理模拟"""
     bl_idname = "physics.calculate"
@@ -19,7 +36,7 @@ class PhysicsCalculateOperator(bpy.types.Operator):
 
     def add_passive_bodies(self, context, add):
         """添加或移除被动刚体"""
-        quick_physics = context.window_manager.quick_physics
+        atprops = get_atprops(context)
         active_object = context.active_object
 
         for obj in context.visible_objects:
@@ -27,7 +44,7 @@ class PhysicsCalculateOperator(bpy.types.Operator):
                 context.view_layer.objects.active = obj
                 if add and obj.rigid_body == None:
                     bpy.ops.rigidbody.object_add()
-                    obj.rigid_body.friction = quick_physics.physics_friction
+                    obj.rigid_body.friction = atprops.physics_friction
                     obj.rigid_body.use_margin = True
                     obj.rigid_body.collision_margin = PhysicsSettings.COLLISION_MARGIN
                     obj.rigid_body.type = "PASSIVE"
@@ -52,9 +69,9 @@ class PhysicsCalculateOperator(bpy.types.Operator):
             self.world_time_scale = 1.0
 
             wm = context.window_manager
-            quick_physics = context.window_manager.quick_physics
+            atprops = get_atprops(context)
             wm.modal_handler_add(self)
-            quick_physics.running_physics_calculation = True
+            atprops.running_physics_calculation = True
 
             # 确保刚体世界存在
             if context.scene.rigidbody_world == None:
@@ -71,7 +88,7 @@ class PhysicsCalculateOperator(bpy.types.Operator):
             self.world_time_scale = scene.rigidbody_world.time_scale
 
             # 应用物理模拟设置
-            scene.rigidbody_world.time_scale = quick_physics.physics_time_scale
+            scene.rigidbody_world.time_scale = atprops.physics_time_scale
             scene.render.fps = PhysicsSettings.DEFAULT_FPS
             scene.frame_start = 0
             scene.frame_end = PhysicsSettings.MAX_SIMULATION_FRAMES
@@ -104,8 +121,8 @@ class PhysicsCalculateOperator(bpy.types.Operator):
 
     def exit_modal(self, context, wm):
         """退出模态操作"""
-        quick_physics = context.window_manager.quick_physics
-        quick_physics.running_physics_calculation = False
+        atprops = get_atprops(context)
+        atprops.running_physics_calculation = False
         bpy.ops.screen.animation_play()
         bpy.ops.physics.apply()
 
@@ -124,8 +141,8 @@ class PhysicsCalculateOperator(bpy.types.Operator):
     def modal(self, context, event):
         """模态操作循环"""
         wm = context.window_manager
-        quick_physics = context.window_manager.quick_physics
-        if event.type in {"ESC"} or context.scene.frame_current >= PhysicsSettings.MAX_SIMULATION_FRAMES or not quick_physics.running_physics_calculation:
+        atprops = get_atprops(context)
+        if event.type in {"ESC"} or context.scene.frame_current >= PhysicsSettings.MAX_SIMULATION_FRAMES or not atprops.running_physics_calculation:
             self.exit_modal(context, wm)
             return {"CANCELLED"}
         wm.progress_update(context.scene.frame_current)
@@ -143,7 +160,7 @@ class PhysicsAddActiveOperator(bpy.types.Operator):
             # 验证对象选择
             selected_objects = validate_object_selection(context, min_count=1, obj_type='MESH')
             
-            quick_physics = context.window_manager.quick_physics
+            atprops = get_atprops(context)
             active_object = context.active_object
             processed_count = 0
             failed_objects = []
@@ -152,7 +169,7 @@ class PhysicsAddActiveOperator(bpy.types.Operator):
                 try:
                     context.view_layer.objects.active = obj
                     bpy.ops.rigidbody.object_add()
-                    obj.rigid_body.friction = quick_physics.physics_friction
+                    obj.rigid_body.friction = atprops.physics_friction
                     obj.rigid_body.use_margin = True
                     obj.rigid_body.collision_margin = PhysicsSettings.COLLISION_MARGIN
                     processed_count += 1

@@ -7,6 +7,7 @@ from bpy.utils import register_class, unregister_class
 from ..config.constants import PhysicsSettings, PathConstants
 
 # 全局缓存存储初始位置，使用 window_manager id 作为 key
+# 存储格式: {obj_key: {'location': Vector, 'center': Vector, 'distance': float}, 'min_distance': float, 'max_distance': float}
 _initial_positions_cache = {}
 
 
@@ -48,6 +49,11 @@ def update_explode_offset(self, context):
     # 获取集合中的所有网格对象
     mesh_objects = [obj for obj in collection.all_objects if obj.type == 'MESH']
     
+    # 获取距离范围用于归一化
+    min_distance = initial_positions.get('_min_distance', 0.0)
+    max_distance = initial_positions.get('_max_distance', 1.0)
+    distance_range = max_distance - min_distance if max_distance > min_distance else 1.0
+    
     # 为每个对象计算偏移
     for obj in mesh_objects:
         # 使用对象指针作为key，避免重名问题
@@ -55,16 +61,47 @@ def update_explode_offset(self, context):
         if obj_key not in initial_positions:
             continue
         
-        initial_world_center = initial_positions[obj_key]
+        # 跳过距离范围标记
+        if obj_key in ['_min_distance', '_max_distance']:
+            continue
         
-        # 计算方向向量
-        direction = initial_world_center.normalized() if initial_world_center.length > 0.001 else mathutils.Vector((1, 0, 0))
+        # 获取记录的初始位置和重心
+        initial_data = initial_positions[obj_key]
+        initial_location = initial_data['location']
+        initial_world_center = initial_data['center']
+        distance = initial_data.get('distance', initial_world_center.length)
         
-        # 计算偏移向量（基于初始位置 + 偏移值）
-        offset_vector = direction * (initial_world_center.length + self.explode_offset)
+        # 根据距离计算缩放因子（距离越远，缩放因子越大）
+        # 使用非线性映射以增强距离差异，更好地拉开密集区域
+        if distance_range > 0.001:
+            # 归一化距离到 0-1 范围
+            normalized_distance = (distance - min_distance) / distance_range
+            # 使用平方函数增强距离差异：距离越远，缩放因子增长越快
+            # 映射到更大范围：[0.1, 3.0]，让距离远的对象偏移更多，拉开密集区域
+            min_scale = 0.1
+            max_scale = 3.0
+            # 使用 normalized_distance 的平方，让距离差异更明显
+            scale_factor = min_scale + (normalized_distance ** 2) * (max_scale - min_scale)
+            scale_factor = max(0.1, scale_factor)  # 确保最小缩放因子
+        else:
+            # 如果所有对象距离相同，使用固定缩放
+            scale_factor = 1.0
+        
+        # 计算归一化的方向向量（从原点到重心的方向）
+        if initial_world_center.length > 0.001:
+            direction = initial_world_center.normalized()
+        else:
+            # 如果重心在原点，使用默认方向
+            direction = mathutils.Vector((1, 0, 0))
+        
+        # 计算偏移向量：使用归一化方向向量，距离越远偏移越多
+        offset_vector = direction * self.explode_offset * scale_factor
+        
+        # 计算新位置：原始位置 + 偏移向量
+        new_location = initial_location + offset_vector
         
         # 设置新位置
-        obj.location = offset_vector
+        obj.location = new_location
 
 
 class ExplodeProperties(PropertyGroup):
@@ -117,6 +154,7 @@ class ExplodeProperties(PropertyGroup):
         
         # 记录初始位置（使用对象指针作为key）
         initial_positions = {}
+        distances = []
         
         for obj in mesh_objects:
             # 计算网格的重心（本地空间）
@@ -130,9 +168,23 @@ class ExplodeProperties(PropertyGroup):
             # 转换为世界空间
             world_center = obj.matrix_world @ mathutils.Vector(local_center)
             
+            # 计算到原点的距离
+            distance = world_center.length
+            
             # 使用对象指针作为key，避免重名问题
             obj_key = id(obj)
-            initial_positions[obj_key] = world_center.copy()
+            # 同时记录对象的原始位置、重心坐标和距离
+            initial_positions[obj_key] = {
+                'location': mathutils.Vector(obj.location),
+                'center': world_center.copy(),
+                'distance': distance
+            }
+            distances.append(distance)
+        
+        # 记录距离范围用于归一化
+        if distances:
+            initial_positions['_min_distance'] = min(distances)
+            initial_positions['_max_distance'] = max(distances)
         
         self.has_initial_positions = True
         return initial_positions
