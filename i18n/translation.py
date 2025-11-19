@@ -63,6 +63,9 @@ class TranslationManager:
             "Export Location": {"en_US": "Export Location", "zh": "导出位置"},
             "Friction": {"en_US": "Friction", "zh": "摩擦力"},
             "Time Scale": {"en_US": "Time Scale", "zh": "时间缩放"},
+            "Solver Iterations": {"en_US": "Solver Iterations", "zh": "求解器迭代"},
+            "Split Impulse": {"en_US": "Split Impulse", "zh": "抑制穿透"},
+            "Restitution": {"en_US": "Restitution", "zh": "弹性"},
             "Tiling Scale": {"en_US": "Tiling Scale", "zh": "平铺缩放"},
             "Bump Strength": {"en_US": "Bump Strength", "zh": "凹凸强度"},
             

@@ -47,6 +47,7 @@ class PhysicsCalculateOperator(bpy.types.Operator):
                     obj.rigid_body.friction = atprops.physics_friction
                     obj.rigid_body.use_margin = True
                     obj.rigid_body.collision_margin = PhysicsSettings.COLLISION_MARGIN
+                    obj.rigid_body.restitution = atprops.physics_restitution
                     obj.rigid_body.type = "PASSIVE"
                     obj.rigid_body.collision_shape = "MESH"
                 elif not add and obj.rigid_body != None:
@@ -67,6 +68,7 @@ class PhysicsCalculateOperator(bpy.types.Operator):
             self.world_enabled = True
             self.use_split_impulse = True
             self.world_time_scale = 1.0
+            self.solver_iterations = PhysicsSettings.DEFAULT_SOLVER_ITERATIONS
 
             wm = context.window_manager
             atprops = get_atprops(context)
@@ -86,6 +88,7 @@ class PhysicsCalculateOperator(bpy.types.Operator):
             self.world_enabled = scene.rigidbody_world.enabled
             self.use_split_impulse = scene.rigidbody_world.use_split_impulse
             self.world_time_scale = scene.rigidbody_world.time_scale
+            self.solver_iterations = scene.rigidbody_world.solver_iterations
 
             # 应用物理模拟设置
             scene.rigidbody_world.time_scale = atprops.physics_time_scale
@@ -94,7 +97,8 @@ class PhysicsCalculateOperator(bpy.types.Operator):
             scene.frame_end = PhysicsSettings.MAX_SIMULATION_FRAMES
             scene.frame_current = 0
             scene.rigidbody_world.enabled = True
-            scene.rigidbody_world.use_split_impulse = True
+            scene.rigidbody_world.use_split_impulse = atprops.physics_split_impulse
+            scene.rigidbody_world.solver_iterations = max(1, int(atprops.physics_solver_iterations))
 
             # 添加被动刚体
             self.add_passive_bodies(context, True)
@@ -133,6 +137,7 @@ class PhysicsCalculateOperator(bpy.types.Operator):
         context.scene.rigidbody_world.enabled = self.world_enabled
         context.scene.rigidbody_world.use_split_impulse = self.use_split_impulse
         context.scene.rigidbody_world.time_scale = self.world_time_scale
+        context.scene.rigidbody_world.solver_iterations = self.solver_iterations
 
         self.add_passive_bodies(context, False)
         wm.progress_end()
@@ -172,6 +177,7 @@ class PhysicsAddActiveOperator(bpy.types.Operator):
                     obj.rigid_body.friction = atprops.physics_friction
                     obj.rigid_body.use_margin = True
                     obj.rigid_body.collision_margin = PhysicsSettings.COLLISION_MARGIN
+                    obj.rigid_body.restitution = atprops.physics_restitution
                     processed_count += 1
                 except Exception as e:
                     failed_objects.append(f"{obj.name}: {str(e)}")

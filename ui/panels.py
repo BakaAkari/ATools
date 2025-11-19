@@ -48,6 +48,9 @@ class MainPanel(bpy.types.Panel):
             physics_column = physics_box.column()
             physics_column.prop(wm.atprops, 'physics_friction', text=get_text("Friction", context), slider=True)
             physics_column.prop(wm.atprops, 'physics_time_scale', text=get_text("Time Scale", context))
+            physics_column.prop(wm.atprops, 'physics_solver_iterations', text=get_text("Solver Iterations", context))
+            physics_column.prop(wm.atprops, 'physics_split_impulse', text=get_text("Split Impulse", context))
+            physics_column.prop(wm.atprops, 'physics_restitution', text=get_text("Restitution", context), slider=True)
             if not wm.atprops.running_physics_calculation:
                 physics_column.operator('physics.calculate', text=get_text("开始模拟", context))
             else:

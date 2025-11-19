@@ -254,6 +254,23 @@ class AToolsToolProperties(PropertyGroup):
         min=0.0, max=20.0
     ) # type: ignore
     
+    physics_solver_iterations: IntProperty(
+        description="Solver precision",
+        default=PhysicsSettings.DEFAULT_SOLVER_ITERATIONS,
+        min=1, max=200
+    ) # type: ignore
+    
+    physics_split_impulse: BoolProperty(
+        description="Reduce penetration artifacts",
+        default=PhysicsSettings.DEFAULT_SPLIT_IMPULSE
+    ) # type: ignore
+    
+    physics_restitution: FloatProperty(
+        description="Elasticity",
+        default=PhysicsSettings.DEFAULT_RESTITUTION,
+        min=0.0, max=1.0
+    ) # type: ignore
+    
     is_running_physics: BoolProperty(
         description="",
         default=False
