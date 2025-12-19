@@ -1,7 +1,7 @@
 import bpy
 import mathutils
 from bpy.props import (BoolProperty, EnumProperty, FloatProperty, FloatVectorProperty, IntProperty,
-                       StringProperty, PointerProperty)
+                       StringProperty, PointerProperty, CollectionProperty)
 from bpy.types import PropertyGroup
 from bpy.utils import register_class, unregister_class
 from ..config.constants import PhysicsSettings, PathConstants
@@ -192,6 +192,24 @@ class ExplodeProperties(PropertyGroup):
 
 
 
+class CustomColliderItem(PropertyGroup):
+    """自定义碰撞体列表项"""
+    
+    obj: PointerProperty(
+        name="Object",
+        type=bpy.types.Object
+    ) # type: ignore
+
+
+class CustomColliderItem(PropertyGroup):
+    """自定义碰撞体列表项"""
+    
+    obj: PointerProperty(
+        name="Object",
+        type=bpy.types.Object
+    ) # type: ignore
+
+
 class AToolsToolProperties(PropertyGroup):
     """工具属性组"""
     
@@ -242,6 +260,31 @@ class AToolsToolProperties(PropertyGroup):
     ) # type: ignore
     
     
+    physics_collision_shape: EnumProperty(
+        name="Collision Shape",
+        description="Shape of the collision hull",
+        items=[
+            ('MESH', "Mesh", "Mesh collision shape"),
+            ('CONVEX_HULL', "Convex Hull", "Convex Hull collision shape"),
+            ('BOX', "Box", "Box collision shape"),
+            ('SPHERE', "Sphere", "Sphere collision shape"),
+            ('CAPSULE', "Capsule", "Capsule collision shape"),
+            ('CYLINDER', "Cylinder", "Cylinder collision shape"),
+            ('CONE', "Cone", "Cone collision shape"),
+        ],
+        default='MESH'
+    ) # type: ignore
+
+    physics_collision_margin: FloatProperty(
+        name="Collision Margin",
+        description="Margin for the collision shape (can be negative to shrink)",
+        default=-0.001,
+        min=-1.0,
+        max=1.0,
+        step=0.001,
+        precision=4
+    ) # type: ignore
+    
     physics_friction: FloatProperty(
         description="Friction",
         default=PhysicsSettings.DEFAULT_FRICTION,
@@ -287,13 +330,27 @@ class AToolsToolProperties(PropertyGroup):
         default=True
     ) # type: ignore
 
+    physics_use_custom_colliders: BoolProperty(
+        name="Use Custom Colliders",
+        description="Only use specified objects as passive colliders",
+        default=False
+    ) # type: ignore
+    
+    physics_custom_colliders: CollectionProperty(
+        type=CustomColliderItem
+    ) # type: ignore
+    
+    physics_custom_collider_index: IntProperty(
+        default=-1
+    ) # type: ignore
+
 
 # 保持向后兼容
 ToolProperties = AToolsToolProperties  # 别名
 AtPropgroup = AToolsToolProperties
 
 # 注册顺序很重要：先注册子类，再注册父类
-classes = (ExplodeProperties, AToolsToolProperties)
+classes = (CustomColliderItem, ExplodeProperties, AToolsToolProperties)
 
 
 def register():

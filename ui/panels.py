@@ -4,6 +4,16 @@ from ..i18n.translation import get_text
 from ..config.constants import UIConstants
 
 
+class AT_UL_CustomColliderList(bpy.types.UIList):
+    """自定义碰撞体列表绘制类"""
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        # item 是 CustomColliderItem 实例
+        if item.obj:
+            layout.label(text=item.obj.name, icon='OBJECT_DATAMODE')
+        else:
+            layout.label(text="<Missing Object>", icon='ERROR')
+
+
 class MainPanel(bpy.types.Panel):
     """主面板"""
     bl_idname = "VIEW3D_PT_atools_main"
@@ -46,11 +56,31 @@ class MainPanel(bpy.types.Panel):
         if physics_panel:
             physics_box = physics_panel.box()
             physics_column = physics_box.column()
+            physics_column.prop(wm.atprops, 'physics_collision_shape', text="Collision Shape")
+            physics_column.prop(wm.atprops, 'physics_collision_margin', text="Collision Margin", slider=True)
             physics_column.prop(wm.atprops, 'physics_friction', text=get_text("Friction", context), slider=True)
             physics_column.prop(wm.atprops, 'physics_time_scale', text=get_text("Time Scale", context))
             physics_column.prop(wm.atprops, 'physics_solver_iterations', text=get_text("Solver Iterations", context))
             physics_column.prop(wm.atprops, 'physics_split_impulse', text=get_text("Split Impulse", context))
             physics_column.prop(wm.atprops, 'physics_restitution', text=get_text("Restitution", context), slider=True)
+            
+            # Custom Colliders
+            physics_column.separator()
+            physics_column.prop(wm.atprops, 'physics_use_custom_colliders', text="Use Custom Colliders")
+            if wm.atprops.physics_use_custom_colliders:
+                box = physics_column.box()
+                row = box.row()
+                row.template_list("AT_UL_CustomColliderList", "custom_colliders", wm.atprops, "physics_custom_colliders", wm.atprops, "physics_custom_collider_index", rows=3)
+                
+                col = row.column(align=True)
+                col.operator("physics.remove_custom_collider", icon='REMOVE', text="")
+                
+                row = box.row(align=True)
+                row.operator("physics.get_custom_colliders", text="Get Selected")
+                row.operator("physics.clear_custom_colliders", text="Clear List")
+            
+            physics_column.separator()
+
             if not wm.atprops.running_physics_calculation:
                 physics_column.operator('physics.calculate', text=get_text("开始模拟", context))
             else:
@@ -132,6 +162,7 @@ class NodePanel(bpy.types.Panel):
 
 
 classes = (
+    AT_UL_CustomColliderList,
     MainPanel,
     NodePanel,
 )

@@ -23,6 +23,28 @@ def get_atprops(context):
     return wm.atprops
 
 
+def add_shrink_modifier(obj, strength):
+    """添加或更新收缩/膨胀修改器"""
+    mod_name = "AT_Physics_Shrink"
+    mod = obj.modifiers.get(mod_name)
+    if not mod:
+        mod = obj.modifiers.new(name=mod_name, type='DISPLACE')
+    
+    mod.strength = strength
+    mod.mid_level = 0.0  # 确保从表面开始偏移
+    # 确保修改器在最上层（或合适位置），通常物理计算取最终结果，所以只要开启即可
+    # 为了确保效果，可以考虑移到最前？但通常保持默认添加顺序即可，除非有Subsurf
+    return mod
+
+
+def remove_shrink_modifier(obj):
+    """移除收缩/膨胀修改器"""
+    mod_name = "AT_Physics_Shrink"
+    mod = obj.modifiers.get(mod_name)
+    if mod:
+        obj.modifiers.remove(mod)
+
+
 class PhysicsCalculateOperator(bpy.types.Operator):
     """计算物理模拟"""
     bl_idname = "physics.calculate"
@@ -39,19 +61,38 @@ class PhysicsCalculateOperator(bpy.types.Operator):
         atprops = get_atprops(context)
         active_object = context.active_object
 
-        for obj in context.visible_objects:
-            if not obj.select_get() and obj.type == "MESH":
-                context.view_layer.objects.active = obj
-                if add and obj.rigid_body == None:
-                    bpy.ops.rigidbody.object_add()
-                    obj.rigid_body.friction = atprops.physics_friction
-                    obj.rigid_body.use_margin = True
-                    obj.rigid_body.collision_margin = PhysicsSettings.COLLISION_MARGIN
-                    obj.rigid_body.restitution = atprops.physics_restitution
-                    obj.rigid_body.type = "PASSIVE"
-                    obj.rigid_body.collision_shape = "MESH"
-                elif not add and obj.rigid_body != None:
-                    bpy.ops.rigidbody.object_remove()
+        objects_to_process = []
+        if atprops.physics_use_custom_colliders:
+            # Use custom colliders
+            for item in atprops.physics_custom_colliders:
+                if item.obj:  # Ensure object is valid
+                    objects_to_process.append(item.obj)
+        else:
+            # Use visible objects that are not selected
+            objects_to_process = [obj for obj in context.visible_objects if not obj.select_get() and obj.type == "MESH"]
+
+        for obj in objects_to_process:
+            context.view_layer.objects.active = obj
+            if add and obj.rigid_body == None:
+                bpy.ops.rigidbody.object_add()
+                obj.rigid_body.friction = atprops.physics_friction
+                obj.rigid_body.use_margin = True
+                
+                # 使用 Displace 修改器来处理 Margin (收缩/膨胀)
+                safety_margin = 0.001
+                target_margin = atprops.physics_collision_margin
+                
+                physics_margin = safety_margin
+                displace_strength = target_margin - physics_margin
+                
+                add_shrink_modifier(obj, displace_strength)
+                
+                obj.rigid_body.collision_margin = physics_margin
+                obj.rigid_body.restitution = atprops.physics_restitution
+                obj.rigid_body.type = "PASSIVE"
+                obj.rigid_body.collision_shape = atprops.physics_collision_shape
+            elif not add and obj.rigid_body != None:
+                bpy.ops.rigidbody.object_remove()
 
         context.view_layer.objects.active = active_object
 
@@ -74,6 +115,14 @@ class PhysicsCalculateOperator(bpy.types.Operator):
             atprops = get_atprops(context)
             wm.modal_handler_add(self)
             atprops.running_physics_calculation = True
+            
+            # Handle selection for custom colliders
+            self.deselected_objects = []
+            if atprops.physics_use_custom_colliders:
+                for item in atprops.physics_custom_colliders:
+                    if item.obj and item.obj.select_get():
+                        item.obj.select_set(False)
+                        self.deselected_objects.append(item.obj)
 
             # 确保刚体世界存在
             if context.scene.rigidbody_world == None:
@@ -140,6 +189,25 @@ class PhysicsCalculateOperator(bpy.types.Operator):
         context.scene.rigidbody_world.solver_iterations = self.solver_iterations
 
         self.add_passive_bodies(context, False)
+
+        # Clean up shrink modifiers from active objects
+        # We need to find which objects were active. 
+        # Since we don't store the list explicitly in this operator instance (except selection),
+        # we can iterate over selection (if selection hasn't changed) or check all visible objects for the modifier.
+        # Checking all visible objects is safer and fast enough.
+        for obj in context.visible_objects:
+            if obj.type == 'MESH':
+                 remove_shrink_modifier(obj)
+
+        # Restore selection
+        if hasattr(self, 'deselected_objects'):
+             for obj in self.deselected_objects:
+                 if obj:
+                     try:
+                         obj.select_set(True)
+                     except:
+                         pass
+
         wm.progress_end()
         bpy.ops.ed.undo_push(message="Calc Physics")
 
@@ -176,8 +244,36 @@ class PhysicsAddActiveOperator(bpy.types.Operator):
                     bpy.ops.rigidbody.object_add()
                     obj.rigid_body.friction = atprops.physics_friction
                     obj.rigid_body.use_margin = True
-                    obj.rigid_body.collision_margin = PhysicsSettings.COLLISION_MARGIN
+                    
+                    # 使用 Displace 修改器来处理 Margin (收缩/膨胀)
+                    # 为了保证物理计算稳定性（特别是Mesh形状），保留一个微小的物理边距
+                    safety_margin = 0.001
+                    target_margin = atprops.physics_collision_margin
+                    
+                    # 物理边距设为安全值（不能为负）
+                    physics_margin = safety_margin
+                    
+                    # 修改器偏移 = 目标边距 - 物理边距
+                    # 例子: 目标0 -> 物理0.001 -> 偏移 -0.001 -> 最终视觉碰撞面 = 原面
+                    displace_strength = target_margin - physics_margin
+                    
+                    # 总是添加修改器，使用计算后的偏移值
+                    add_shrink_modifier(obj, displace_strength)
+                    
+                    # 将刚体自带的 Margin 设为安全值
+                    obj.rigid_body.collision_margin = physics_margin
+                    
                     obj.rigid_body.restitution = atprops.physics_restitution
+                    # Active objects always use MESH unless we want to expose this too, 
+                    # but user asked for "proxy shape of physics objects" which usually refers to passive/colliders in this context.
+                    # However, if the user meant "Active" objects too, we can change it here. 
+                    # Given the context of optimization, it's usually about the static colliders.
+                    # Let's stick to "MESH" for active objects as they need accurate simulation, 
+                    # OR we can use the same property if that's what the user intends.
+                    # User said "choose proxy shape for physics simulation objects", let's use it for ACTIVE too.
+                    # Wait, usually active objects need convex hull or mesh to be useful in simulations like this (debris).
+                    # Let's use the property for consistency if that's the request.
+                    obj.rigid_body.collision_shape = atprops.physics_collision_shape 
                     processed_count += 1
                 except Exception as e:
                     failed_objects.append(f"{obj.name}: {str(e)}")
@@ -237,6 +333,10 @@ class PhysicsApplyOperator(bpy.types.Operator):
                     obj = bpy.data.objects[data["obj"].name]
                     context.view_layer.objects.active = obj
                     
+                    # Remove shrink modifier BEFORE applying visual transform
+                    # (We want the position from the simulation, but the shape from before the shrink)
+                    remove_shrink_modifier(obj)
+                    
                     # 应用视觉变换
                     bpy.ops.object.visual_transform_apply()
                     
@@ -274,10 +374,85 @@ class PhysicsApplyOperator(bpy.types.Operator):
             return {'CANCELLED'}
 
 
+class PhysicsGetCustomCollidersOperator(bpy.types.Operator):
+    """将选中的Mesh对象添加到自定义碰撞体列表"""
+    bl_idname = "physics.get_custom_colliders"
+    bl_label = "Get Selected Colliders"
+    bl_description = "Add selected mesh objects to custom colliders list"
+    
+    @classmethod
+    def poll(cls, context):
+        return context.selected_objects
+        
+    def execute(self, context):
+        atprops = get_atprops(context)
+        added_count = 0
+        
+        for obj in context.selected_objects:
+            if obj.type == 'MESH':
+                # Check if already exists
+                exists = False
+                for item in atprops.physics_custom_colliders:
+                    if item.obj == obj:
+                        exists = True
+                        break
+                
+                if not exists:
+                    item = atprops.physics_custom_colliders.add()
+                    item.obj = obj
+                    added_count += 1
+        
+        if added_count > 0:
+            self.report({'INFO'}, f"Added {added_count} objects to colliders list")
+        else:
+            self.report({'WARNING'}, "No new mesh objects added")
+            
+        return {'FINISHED'}
+
+
+class PhysicsClearCustomCollidersOperator(bpy.types.Operator):
+    """清空自定义碰撞体列表"""
+    bl_idname = "physics.clear_custom_colliders"
+    bl_label = "Clear Colliders"
+    bl_description = "Clear custom colliders list"
+    
+    def execute(self, context):
+        atprops = get_atprops(context)
+        atprops.physics_custom_colliders.clear()
+        self.report({'INFO'}, "Colliders list cleared")
+        return {'FINISHED'}
+
+
+class PhysicsRemoveCustomColliderOperator(bpy.types.Operator):
+    """移除选中的自定义碰撞体"""
+    bl_idname = "physics.remove_custom_collider"
+    bl_label = "Remove Collider"
+    bl_description = "Remove selected collider from list"
+    
+    @classmethod
+    def poll(cls, context):
+        atprops = get_atprops(context)
+        return len(atprops.physics_custom_colliders) > 0
+    
+    def execute(self, context):
+        atprops = get_atprops(context)
+        index = atprops.physics_custom_collider_index
+        
+        if 0 <= index < len(atprops.physics_custom_colliders):
+            atprops.physics_custom_colliders.remove(index)
+            if index >= len(atprops.physics_custom_colliders):
+                atprops.physics_custom_collider_index = len(atprops.physics_custom_colliders) - 1
+                
+        return {'FINISHED'}
+
+
 classes = (
     PhysicsCalculateOperator,
     PhysicsAddActiveOperator,
     PhysicsApplyOperator,
+    PhysicsGetCustomCollidersOperator,
+    PhysicsClearCustomCollidersOperator,
+    PhysicsRemoveCustomColliderOperator,
 )
 
 
